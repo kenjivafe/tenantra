@@ -1,6 +1,7 @@
 # 🏢 Tenantra
 
 **Tenantra** is a modern condominium and apartment management platform.
+
 <img width="1618" height="989" alt="image" src="https://github.com/user-attachments/assets/bc3c4b4e-d086-44f8-8a44-3629e62cf2ee" />
 
 ### 🚀 Structure

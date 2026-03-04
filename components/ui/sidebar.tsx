@@ -23,13 +23,14 @@ export function Sidebar({ children, className }: SidebarProps) {
 
 type SidebarNavProps = {
   items: Array<{ label: string; href: string }>;
+  onItemClick?: () => void;
 };
 
-export function SidebarNav({ items }: SidebarNavProps) {
+export function SidebarNav({ items, onItemClick }: SidebarNavProps) {
   return (
     <nav className="grid gap-1 mt-8">
       {items.map((item) => (
-        <SidebarNavItem key={item.href} href={item.href}>
+        <SidebarNavItem key={item.href} href={item.href} onClick={onItemClick}>
           {item.label}
         </SidebarNavItem>
       ))}
@@ -41,9 +42,10 @@ type SidebarNavItemProps = {
   href: string;
   children: ReactNode;
   className?: string;
+  onClick?: () => void;
 };
 
-export function SidebarNavItem({ href, children, className }: SidebarNavItemProps) {
+export function SidebarNavItem({ href, children, className, onClick }: SidebarNavItemProps) {
   return (
     <Link
       href={href}
@@ -51,6 +53,7 @@ export function SidebarNavItem({ href, children, className }: SidebarNavItemProp
         "flex justify-between items-center px-4 py-3 text-sm font-medium rounded-xl transition group text-text-secondary hover:bg-panel/70 hover:text-text-primary",
         className,
       )}
+      onClick={onClick}
     >
       <span className="relative">
         <span className="absolute -left-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-accent/0 transition-colors group-hover:bg-accent/70" />

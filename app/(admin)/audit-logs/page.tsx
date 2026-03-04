@@ -121,7 +121,7 @@ export default function AuditLogsPage() {
                   <Badge variant="danger">Delete</Badge>
                 </td>
                 <td className="py-3 px-4 text-text-primary">Announcements</td>
-                <td className="py-3 px-4 text-text-primary">Deleted draft announcement: "Pool Maintenance"</td>
+                <td className="py-3 px-4 text-text-primary">Deleted draft announcement: &quot;Pool Maintenance&quot;</td>
                 <td className="py-3 px-4 text-text-primary">192.168.1.101</td>
               </tr>
               <tr className="border-b border-border/20">

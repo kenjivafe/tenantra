@@ -87,7 +87,7 @@ export default function AnalyticsPage() {
           <Card className="bg-panel" padding="md">
             <h3 className="text-lg font-semibold font-display text-text-primary mb-4">Occupancy Trend</h3>
             <div className="h-32 relative">
-              <svg className="w-full h-full">
+              <svg className="w-full h-full" viewBox="0 0 540 120" preserveAspectRatio="none">
                 <polyline
                   fill="none"
                   stroke="currentColor"

@@ -36,8 +36,8 @@ function StatCard({ label, value, delta, deltaVariant = "default" }: StatCardPro
 export default function AdminDashboardPage() {
   return (
     <>
-      <section className="grid gap-8 p-2 px-4 md:grid-cols-2">
-        <div className="p-4">
+      <section className="grid gap-6 px-3 py-2 md:grid-cols-2 md:gap-8 md:px-4">
+        <div className="p-3 md:p-4">
           <h3 className="mb-4 text-2xl font-semibold font-display">Monthly Revenue</h3>
           <div className="flex gap-2 justify-between items-end h-32">
             <div className="flex-1 rounded-t bg-status-success" style={{ height: '75%' }}></div>
@@ -73,7 +73,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
         
-        <div className="p-4">
+        <div className="p-3 md:p-4">
           <h3 className="mb-4 text-2xl font-semibold font-display">Activity Timeline</h3>
           
           <div className="flex gap-2 mb-4">
@@ -138,8 +138,8 @@ export default function AdminDashboardPage() {
         </div>
       </section>
 
-      <div className="px-4">
-        <Card className="bg-[#e9f5f3] shadow-inner" padding="md">
+      <div className="px-3 max-w-full overflow-x-hidden sm:px-4">
+        <Card className="bg-[#e9f5f3] shadow-inner w-full p-4 sm:p-7" padding="md">
           <div className="grid gap-6">
             <section className="grid gap-4 md:grid-cols-3">
               <StatCard label="Rent Collected (This Month)" value="₱4.2M" delta="+8.3%" deltaVariant="success" />
@@ -163,7 +163,7 @@ export default function AdminDashboardPage() {
             </div>
             <Badge variant="subtle">Live</Badge>
           </div>
-          <div className="flex gap-8 items-center mt-6">
+          <div className="flex flex-col gap-6 mt-6 sm:flex-row sm:items-center">
             <div className="relative w-32 h-32">
               <svg className="w-32 h-32 transform -rotate-90">
                 <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="16" fill="none" className="text-border/20"></circle>
@@ -214,7 +214,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="mt-6">
             <div className="relative h-32">
-              <svg className="w-full h-full">
+              <svg className="w-full h-full" viewBox="0 0 540 120" preserveAspectRatio="none">
                 <polyline
                   fill="none"
                   stroke="currentColor"

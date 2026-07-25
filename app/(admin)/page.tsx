@@ -1,260 +1,258 @@
+import Link from "next/link";
+
+import { BarChart, ChartLegend, DonutChart, LineChart } from "@/components/charts";
+import { ActivityTimeline } from "@/components/dashboard/activity-timeline";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
+import { getAuditLogs, getDashboardMetrics } from "@/lib/data";
+import {
+  formatDelta,
+  formatMoney,
+  formatMoneyCompact,
+  formatNumber,
+  formatPercent,
+  formatPeriodShort,
+  formatRelative,
+} from "@/lib/format";
 
-type StatCardProps = {
-  label: string;
-  value: string;
-  delta: string;
-  deltaVariant?: "success" | "warning" | "danger" | "default";
+export const dynamic = "force-dynamic";
+
+const UNIT_TONE: Record<string, string> = {
+  occupied: "text-status-success",
+  vacant: "text-accent",
+  reserved: "text-status-warning",
+  maintenance: "text-status-danger",
 };
 
-function StatCard({ label, value, delta, deltaVariant = "default" }: StatCardProps) {
-  const variant =
-    deltaVariant === "default"
-      ? "subtle"
-      : deltaVariant === "success"
-        ? "success"
-        : deltaVariant === "warning"
-          ? "warning"
-          : "danger";
-
-  return (
-    <Card className="bg-panel shadow-card" padding="sm">
-      <div className="flex gap-3 justify-between items-start">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-            {label}
-          </p>
-          <p className="mt-4 text-3xl font-semibold font-display text-text-primary">{value}</p>
-        </div>
-        <Badge variant={variant}>{delta}</Badge>
-      </div>
-    </Card>
-  );
-}
+const UNIT_SWATCH: Record<string, string> = {
+  occupied: "bg-status-success",
+  vacant: "bg-accent",
+  reserved: "bg-status-warning",
+  maintenance: "bg-status-danger",
+};
 
 export default function AdminDashboardPage() {
+  const metrics = getDashboardMetrics();
+  const logs = getAuditLogs(60);
+
+  const revenueData = metrics.series.map((entry) => ({
+    label: formatPeriodShort(entry.period),
+    bars: [
+      { name: "Paid", value: entry.collected, className: "bg-status-success" },
+      { name: "Due", value: Math.max(entry.outstanding - entry.overdue, 0), className: "bg-accent" },
+      { name: "Overdue", value: entry.overdue, className: "bg-status-danger" },
+    ],
+  }));
+
+  const occupancyPoints = metrics.occupancy.map((entry) => ({
+    label: formatPeriodShort(entry.period),
+    value: entry.rate,
+  }));
+
+  const occupancyStart = occupancyPoints[0]?.value ?? 0;
+  const occupancyEnd = occupancyPoints[occupancyPoints.length - 1]?.value ?? 0;
+
   return (
     <>
       <section className="grid gap-6 px-3 py-2 md:grid-cols-2 md:gap-8 md:px-4">
         <div className="p-3 md:p-4">
-          <h3 className="mb-4 text-2xl font-semibold font-display">Monthly Revenue</h3>
-          <div className="flex gap-2 justify-between items-end h-32">
-            <div className="flex-1 rounded-t bg-status-success" style={{ height: '75%' }}></div>
-            <div className="flex-1 rounded-t bg-status-success" style={{ height: '82%' }}></div>
-            <div className="flex-1 rounded-t bg-accent" style={{ height: '65%' }}></div>
-            <div className="flex-1 rounded-t bg-status-success" style={{ height: '90%' }}></div>
-            <div className="flex-1 rounded-t bg-accent" style={{ height: '70%' }}></div>
-            <div className="flex-1 rounded-t bg-status-danger" style={{ height: '45%' }}></div>
-            <div className="flex-1 rounded-t bg-status-success" style={{ height: '85%' }}></div>
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <h3 className="text-2xl font-semibold font-display">Monthly Revenue</h3>
+            <Link href="/billing" className="text-xs font-semibold text-accent hover:underline">
+              View billing →
+            </Link>
           </div>
-          <div className="flex justify-between mt-3 text-xs text-text-muted">
-            <span>Jan</span>
-            <span>Feb</span>
-            <span>Mar</span>
-            <span>Apr</span>
-            <span>May</span>
-            <span>Jun</span>
-            <span>Jul</span>
-          </div>
-          <div className="flex gap-6 justify-center mt-4">
-            <div className="flex gap-2 items-center">
-              <div className="w-3 h-3 rounded bg-status-success"></div>
-              <span className="text-xs text-text-muted">Paid</span>
-            </div>
-            <div className="flex gap-2 items-center">
-              <div className="w-3 h-3 rounded bg-accent"></div>
-              <span className="text-xs text-text-muted">Due</span>
-            </div>
-            <div className="flex gap-2 items-center">
-              <div className="w-3 h-3 rounded bg-status-danger"></div>
-              <span className="text-xs text-text-muted">Overdue</span>
-            </div>
-          </div>
+          <BarChart data={revenueData} height="h-32" formatValue={formatMoney} />
+          <ChartLegend
+            items={[
+              { name: "Paid", className: "bg-status-success" },
+              { name: "Due", className: "bg-accent" },
+              { name: "Overdue", className: "bg-status-danger" },
+            ]}
+          />
         </div>
-        
+
         <div className="p-3 md:p-4">
-          <h3 className="mb-4 text-2xl font-semibold font-display">Activity Timeline</h3>
-          
-          <div className="flex gap-2 mb-4">
-            <button className="px-3 py-1 text-xs font-medium text-white rounded-full bg-accent">All</button>
-            <button className="px-3 py-1 text-xs font-medium rounded-full bg-border/20 text-text-muted hover:bg-border/40">Payments</button>
-            <button className="px-3 py-1 text-xs font-medium rounded-full bg-border/20 text-text-muted hover:bg-border/40">Maintenance</button>
-            <button className="px-3 py-1 text-xs font-medium rounded-full bg-border/20 text-text-muted hover:bg-border/40">Leasing</button>
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <h3 className="text-2xl font-semibold font-display">Activity Timeline</h3>
+            <Link href="/audit-logs" className="text-xs font-semibold text-accent hover:underline">
+              All logs →
+            </Link>
           </div>
-          
-          <ul className="space-y-3 text-sm">
-            <li className="flex justify-between items-center">
-              <div className="flex gap-3 items-center">
-                <div className="w-2 h-2 rounded-full bg-accent"></div>
-                <div>
-                  <span className="text-text-secondary">New tenant application</span>
-                  <span className="ml-2 text-xs text-text-muted">Leasing</span>
-                </div>
-              </div>
-              <span className="text-xs text-text-muted">2m ago</span>
-            </li>
-            <li className="flex justify-between items-center">
-              <div className="flex gap-3 items-center">
-                <div className="w-2 h-2 rounded-full bg-status-success"></div>
-                <div>
-                  <span className="text-text-secondary">Payment received</span>
-                  <span className="ml-2 text-xs text-text-muted">Payments</span>
-                </div>
-              </div>
-              <span className="text-xs text-text-muted">15m ago</span>
-            </li>
-            <li className="flex justify-between items-center">
-              <div className="flex gap-3 items-center">
-                <div className="w-2 h-2 rounded-full bg-status-warning"></div>
-                <div>
-                  <span className="text-text-secondary">Maintenance request</span>
-                  <span className="ml-2 text-xs text-text-muted">Maintenance</span>
-                </div>
-              </div>
-              <span className="text-xs text-text-muted">1h ago</span>
-            </li>
-            <li className="flex justify-between items-center">
-              <div className="flex gap-3 items-center">
-                <div className="w-2 h-2 rounded-full bg-status-success"></div>
-                <div>
-                  <span className="text-text-secondary">Facility booking</span>
-                  <span className="ml-2 text-xs text-text-muted">Maintenance</span>
-                </div>
-              </div>
-              <span className="text-xs text-text-muted">2h ago</span>
-            </li>
-            <li className="flex justify-between items-center">
-              <div className="flex gap-3 items-center">
-                <div className="w-2 h-2 rounded-full bg-status-success"></div>
-                <div>
-                  <span className="text-text-secondary">Announcement sent</span>
-                  <span className="ml-2 text-xs text-text-muted">Announcements</span>
-                </div>
-              </div>
-              <span className="text-xs text-text-muted">3h ago</span>
-            </li>
-          </ul>
+          <ActivityTimeline
+            items={logs.map((log) => ({
+              id: log.id,
+              relative: formatRelative(log.at),
+              module: log.module,
+              description: log.description,
+              actor: log.actor,
+              action: log.action,
+              success: log.success,
+            }))}
+          />
         </div>
       </section>
 
-      <div className="px-3 max-w-full overflow-x-hidden sm:px-4">
-        <Card className="bg-[#e9f5f3] shadow-inner w-full p-4 sm:p-7" padding="md">
+      <div className="max-w-full overflow-x-hidden px-3 sm:px-4">
+        <Card className="w-full bg-[#e9f5f3] p-4 shadow-inner sm:p-7" padding="md">
           <div className="grid gap-6">
             <section className="grid gap-4 md:grid-cols-3">
-              <StatCard label="Rent Collected (This Month)" value="₱4.2M" delta="+8.3%" deltaVariant="success" />
-              <StatCard label="Overdue Amount" value="₱156K" delta="+12.4%" deltaVariant="danger" />
-              <StatCard label="Collection Rate %" value="94.2%" delta="+2.1%" deltaVariant="success" />
+              <StatCard
+                label="Rent Collected (This Month)"
+                value={formatMoneyCompact(metrics.collected)}
+                hint={formatMoney(metrics.collected)}
+                badge={formatDelta(metrics.collectedDelta)}
+                tone={metrics.collectedDelta >= 0 ? "success" : "danger"}
+                padding="sm"
+              />
+              <StatCard
+                label="Overdue Amount"
+                value={formatMoneyCompact(metrics.overdueAmount)}
+                hint={`${metrics.overdueCount} overdue invoices`}
+                badge={formatDelta(metrics.overdueDelta)}
+                tone={metrics.overdueDelta > 0 ? "danger" : "success"}
+                padding="sm"
+              />
+              <StatCard
+                label="Collection Rate %"
+                value={formatPercent(metrics.collectionRate)}
+                hint="Current billing period"
+                badge={`${metrics.collectionRateDelta >= 0 ? "+" : ""}${metrics.collectionRateDelta.toFixed(1)} pts`}
+                tone={metrics.collectionRateDelta >= 0 ? "success" : "danger"}
+                padding="sm"
+              />
             </section>
-            
+
             <section className="grid gap-4 md:grid-cols-4">
-              <StatCard label="Total Units" value="5,000" delta="+3.2%" deltaVariant="success" />
-              <StatCard label="Occupied Units" value="4,600" delta="+2.8%" deltaVariant="success" />
-              <StatCard label="Open Maintenance Requests" value="28" delta="-5" deltaVariant="warning" />
-              <StatCard label="Active Leases" value="4,587" delta="+1.2%" deltaVariant="success" />
+              <StatCard
+                label="Total Units"
+                value={formatNumber(metrics.totalUnits)}
+                badge="All"
+                padding="sm"
+              />
+              <StatCard
+                label="Occupied Units"
+                value={formatNumber(metrics.occupiedUnits)}
+                badge={formatPercent(metrics.occupancyRate, 0)}
+                tone="success"
+                padding="sm"
+              />
+              <StatCard
+                label="Units Under Maintenance"
+                value={formatNumber(metrics.maintenanceUnits)}
+                badge={`${metrics.vacantUnits} vacant`}
+                tone="warning"
+                padding="sm"
+              />
+              <StatCard
+                label="Active Leases"
+                value={formatNumber(metrics.activeLeases)}
+                badge={`${metrics.expiringLeases} expiring`}
+                tone={metrics.expiringLeases > 0 ? "warning" : "success"}
+                padding="sm"
+              />
             </section>
 
-        <section className="grid gap-4 lg:grid-cols-2">
-        <Card className="bg-panel" padding="md">
-          <div className="flex gap-4 justify-between items-center">
-            <div>
-              <h2 className="text-2xl font-semibold font-display text-text-primary">Unit Status Overview</h2>
-              <p className="mt-1 text-sm text-text-muted">Current unit distribution across all properties</p>
-            </div>
-            <Badge variant="subtle">Live</Badge>
-          </div>
-          <div className="flex flex-col gap-6 mt-6 sm:flex-row sm:items-center">
-            <div className="relative w-32 h-32">
-              <svg className="w-32 h-32 transform -rotate-90">
-                <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="16" fill="none" className="text-border/20"></circle>
-                <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="16" fill="none" className="text-status-success" strokeDasharray={`${2 * Math.PI * 56 * 0.82} ${2 * Math.PI * 56}`}></circle>
-                <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="16" fill="none" className="text-accent" strokeDasharray={`${2 * Math.PI * 56 * 0.08} ${2 * Math.PI * 56}`} strokeDashoffset={`${-2 * Math.PI * 56 * 0.82}`}></circle>
-                <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="16" fill="none" className="text-status-warning" strokeDasharray={`${2 * Math.PI * 56 * 0.06} ${2 * Math.PI * 56}`} strokeDashoffset={`${-2 * Math.PI * 56 * 0.9}`}></circle>
-                <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="16" fill="none" className="text-status-danger" strokeDasharray={`${2 * Math.PI * 56 * 0.04} ${2 * Math.PI * 56}`} strokeDashoffset={`${-2 * Math.PI * 56 * 0.96}`}></circle>
-              </svg>
-              <div className="flex absolute inset-0 justify-center items-center">
-                <div className="text-center">
-                  <p className="text-2xl font-semibold font-display text-text-primary">5,000</p>
-                  <p className="text-xs text-text-muted">Total Units</p>
+            <section className="grid gap-4 lg:grid-cols-2">
+              <Card className="bg-panel" padding="md">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold font-display text-text-primary">Unit Status Overview</h2>
+                    <p className="mt-1 text-sm text-text-muted">Current unit distribution across all properties</p>
+                  </div>
+                  <Badge variant="subtle">Live</Badge>
                 </div>
-              </div>
-            </div>
-            <div className="grid flex-1 gap-3">
-              <div className="flex gap-3 items-center">
-                <div className="w-3 h-3 rounded bg-status-success"></div>
-                <span className="text-sm text-text-secondary">Occupied Units</span>
-                <span className="ml-auto text-sm font-semibold text-text-primary">4,100 (82%)</span>
-              </div>
-              <div className="flex gap-3 items-center">
-                <div className="w-3 h-3 rounded bg-accent"></div>
-                <span className="text-sm text-text-secondary">Vacant Units</span>
-                <span className="ml-auto text-sm font-semibold text-text-primary">400 (8%)</span>
-              </div>
-              <div className="flex gap-3 items-center">
-                <div className="w-3 h-3 rounded bg-status-warning"></div>
-                <span className="text-sm text-text-secondary">Reserved Units</span>
-                <span className="ml-auto text-sm font-semibold text-text-primary">300 (6%)</span>
-              </div>
-              <div className="flex gap-3 items-center">
-                <div className="w-3 h-3 rounded bg-status-danger"></div>
-                <span className="text-sm text-text-secondary">Under Maintenance</span>
-                <span className="ml-auto text-sm font-semibold text-text-primary">200 (4%)</span>
-              </div>
-            </div>
-          </div>
-        </Card>
+                <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-center">
+                  <DonutChart
+                    segments={metrics.breakdown.items.map((item) => ({
+                      label: item.label,
+                      value: item.count,
+                      className: UNIT_TONE[item.status],
+                    }))}
+                    centerValue={formatNumber(metrics.breakdown.total)}
+                    centerLabel="Total Units"
+                  />
+                  <div className="grid flex-1 gap-3">
+                    {metrics.breakdown.items.map((item) => (
+                      <div key={item.status} className="flex items-center gap-3">
+                        <span className={`h-3 w-3 rounded ${UNIT_SWATCH[item.status]}`} />
+                        <span className="text-sm text-text-secondary">{item.label}</span>
+                        <span className="ml-auto text-sm font-semibold text-text-primary">
+                          {formatNumber(item.count)} ({Math.round(item.share * 100)}%)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
 
-        <Card className="bg-panel" padding="md">
-          <div className="flex gap-4 justify-between items-center">
-            <div>
-              <h2 className="text-2xl font-semibold font-display text-text-primary">Occupancy Trend</h2>
-              <p className="mt-1 text-sm text-text-muted">6-month occupancy performance</p>
-            </div>
-            <Badge variant="subtle">Live</Badge>
-          </div>
-          <div className="mt-6">
-            <div className="relative h-32">
-              <svg className="w-full h-full" viewBox="0 0 540 120" preserveAspectRatio="none">
-                <polyline
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-accent"
-                  points="10,90 50,75 90,80 130,60 170,65 210,50 250,55 290,40 330,45 370,35 410,40 450,30 490,35 530,25"
+              <Card className="bg-panel" padding="md">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold font-display text-text-primary">Occupancy Trend</h2>
+                    <p className="mt-1 text-sm text-text-muted">6-month billed-occupancy performance</p>
+                  </div>
+                  <Badge variant="subtle">Live</Badge>
+                </div>
+                <div className="mt-6">
+                  <LineChart points={occupancyPoints} suffix="%" />
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded bg-accent" />
+                      <span className="text-xs text-text-muted">Occupancy Rate</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-text-primary">
+                        {formatPercent(occupancyStart, 0)} → {formatPercent(occupancyEnd, 0)}
+                      </p>
+                      <p className="text-xs text-text-muted">
+                        {occupancyEnd >= occupancyStart ? "+" : ""}
+                        {(occupancyEnd - occupancyStart).toFixed(1)} pts over 6 months
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </section>
+
+            <section className="grid gap-4 md:grid-cols-3">
+              <Link href="/facilities" className="block">
+                <StatCard
+                  label="Pending Booking Approvals"
+                  value={formatNumber(metrics.pendingApprovals)}
+                  hint="Require review"
+                  badge="Review"
+                  tone={metrics.pendingApprovals > 0 ? "warning" : "success"}
+                  padding="sm"
+                  className="h-full transition hover:-translate-y-[1px] hover:shadow-lg"
                 />
-                <polyline
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1"
-                  strokeDasharray="2,2"
-                  className="text-border/40"
-                  points="10,100 530,100"
+              </Link>
+              <Link href="/facilities" className="block">
+                <StatCard
+                  label="Upcoming Bookings"
+                  value={formatNumber(metrics.upcomingBookings)}
+                  hint="Approved, not yet held"
+                  badge="Scheduled"
+                  tone="success"
+                  padding="sm"
+                  className="h-full transition hover:-translate-y-[1px] hover:shadow-lg"
                 />
-              </svg>
-              <div className="flex absolute right-0 bottom-0 left-0 justify-between text-xs text-text-muted">
-                <span>Jan</span>
-                <span>Feb</span>
-                <span>Mar</span>
-                <span>Apr</span>
-                <span>May</span>
-                <span>Jun</span>
-              </div>
-            </div>
-            <div className="flex justify-between items-center mt-4">
-              <div className="flex gap-2 items-center">
-                <div className="w-3 h-3 rounded bg-accent"></div>
-                <span className="text-xs text-text-muted">Occupancy Rate</span>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-text-primary">92% → 95%</p>
-                <p className="text-xs text-text-muted">+3% improvement</p>
-              </div>
-            </div>
+              </Link>
+              <Link href="/billing" className="block">
+                <StatCard
+                  label="Outstanding This Period"
+                  value={formatMoneyCompact(metrics.series[metrics.series.length - 1]?.outstanding ?? 0)}
+                  hint="Unpaid across all properties"
+                  badge="Collect"
+                  tone="danger"
+                  padding="sm"
+                  className="h-full transition hover:-translate-y-[1px] hover:shadow-lg"
+                />
+              </Link>
+            </section>
           </div>
         </Card>
-        </section>
-        </div>
-      </Card>
       </div>
     </>
   );

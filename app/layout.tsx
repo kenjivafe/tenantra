@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { Inter, Montagu_Slab } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { ToastProvider } from "@/components/ui/toast";
+
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const display = Montagu_Slab({ subsets: ["latin"], variable: "--font-display" });
 
@@ -21,7 +23,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${display.variable}`}>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

@@ -151,3 +151,6 @@ out
 .openspec-session
 .openspec-state
 .openspec-history
+
+# Local demo data store
+.data/

@@ -15,9 +15,9 @@ export const metadata: Metadata = {
     template: "%s | Tenantra",
   },
   description: "Unified administration platform for Tenantra property operations.",
-  icons: {
-    icon: "/favicon.ico",
-  },
+  // Icon is provided by the App Router file convention (app/icon.png), so no
+  // manual /favicon.ico reference — that path 404s and can surface in the
+  // dev overlay as a stray "[object Event]" error.
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

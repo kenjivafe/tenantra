@@ -1,20 +1,18 @@
 import type {
   Announcement,
   AuditLog,
-  Booking,
+  Bill,
+  Cheque,
   Database,
-  Facility,
-  Invoice,
-  PaymentMethod,
-  Property,
-  Resident,
+  ImprovementRequest,
+  Location,
+  Tenant,
   Unit,
-  UnitStatus,
-  UnitType,
+  UnitCategory,
 } from "@/lib/types";
 import { formatMoney, formatPeriod } from "@/lib/format";
 
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 /** Deterministic PRNG so every reseed produces the same demo dataset. */
 function mulberry32(seed: number) {
@@ -29,33 +27,43 @@ function mulberry32(seed: number) {
 }
 
 const FIRST_NAMES = [
-  "Juan", "Maria", "Alex", "Sarah", "Miguel", "Andrea", "Paolo", "Bianca", "Rafael", "Camille",
-  "Nathan", "Isabel", "Diego", "Trisha", "Marco", "Angela", "Carlo", "Patricia", "Emilio", "Danica",
-  "Joshua", "Kristine", "Enrique", "Lorna", "Vicente", "Beatriz", "Gabriel", "Monica", "Rodrigo", "Elaine",
+  "Maricel", "Juan", "Andrea", "Paolo", "Bianca", "Rafael", "Camille", "Nathan", "Isabel", "Diego",
+  "Trisha", "Marco", "Angela", "Carlo", "Patricia", "Emilio", "Danica", "Joshua", "Kristine", "Enrique",
+  "Lorna", "Vicente", "Beatriz", "Gabriel", "Monica", "Rodrigo", "Elaine", "Miguel", "Sarah", "Alex",
 ];
 
 const LAST_NAMES = [
-  "Dela Cruz", "Santos", "Tan", "Lee", "Reyes", "Garcia", "Mendoza", "Aquino", "Villanueva", "Ramos",
-  "Bautista", "Ocampo", "Domingo", "Navarro", "Salazar", "Cruz", "Torres", "Castillo", "Rivera", "Flores",
+  "Samaniego Espiritu", "Dela Cruz", "Santos", "Tan", "Reyes", "Garcia", "Mendoza", "Aquino", "Villanueva",
+  "Ramos", "Bautista", "Ocampo", "Domingo", "Navarro", "Salazar", "Cruz", "Torres", "Castillo", "Rivera", "Flores",
 ];
 
-const UNIT_TYPES: Array<{ type: UnitType; rent: number; weight: number }> = [
-  { type: "Studio", rent: 9_500, weight: 0.24 },
-  { type: "1BR", rent: 13_500, weight: 0.34 },
-  { type: "2BR", rent: 18_500, weight: 0.28 },
-  { type: "3BR", rent: 26_000, weight: 0.14 },
+const BANKS = ["BDO", "BPI", "Metrobank", "Landbank", "UnionBank", "PNB", "Security Bank"];
+
+const RESIDENTIAL_INVENTORY = [
+  "One (1) Smart Television",
+  "One (1) Inverter Air Conditioner",
+  "One (1) Refrigerator",
+  "One (1) Bed",
+  "One (1) Table and Chair Set",
+  "One (1) Washing Machine",
+  "One (1) Water Heater",
 ];
 
-const PAYMENT_METHODS: PaymentMethod[] = ["gcash", "bank-transfer", "card", "cash", "check"];
-
-const UNIT_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
+const COMMERCIAL_INVENTORY = [
+  "One (1) Roll-up Door",
+  "Ceiling Lights and Outlets",
+  "One (1) Comfort Room",
+  "Mezzanine Storage",
+];
 
 const ADMIN = "Admin User";
-const ACTORS = [ADMIN, "Property Manager", "Front Desk Staff"];
-const IPS: Record<string, string> = {
-  [ADMIN]: "192.168.1.100",
-  "Property Manager": "192.168.1.101",
-  "Front Desk Staff": "192.168.1.102",
+const ACTORS = [ADMIN, "Property Admin", "Front Desk"];
+
+const OWNERS_BY_LOCATION: Record<string, string> = {
+  "loc-tug": "Deanne Keith Tan",
+  "loc-pen": "Ramon Villanueva",
+  "loc-sam": "Corazon Bautista",
+  "loc-qc": "Deanne Keith Tan",
 };
 
 function pad(value: number, size = 3) {
@@ -93,60 +101,69 @@ export function periodDueDate(period: string, dueDay: number) {
 }
 
 export function createSeedDatabase(now = new Date()): Database {
-  const random = mulberry32(20260724);
+  const random = mulberry32(20260726);
   const pick = <T>(items: T[]) => items[Math.floor(random() * items.length)];
   const between = (min: number, max: number) => min + Math.floor(random() * (max - min + 1));
+  const money = (min: number, max: number, step = 100) => Math.round(between(min, max) / step) * step;
 
-  const properties: Property[] = [
-    { id: "prop-1", name: "Aurora Tower", code: "T1" },
-    { id: "prop-2", name: "Bayview Residences", code: "T2" },
-    { id: "prop-3", name: "Crestpark Suites", code: "T3" },
+  const locations: Location[] = [
+    { id: "loc-tug", name: "Tuguegarao", code: "TUG" },
+    { id: "loc-pen", name: "Peñablanca", code: "PEN" },
+    { id: "loc-sam", name: "Sampaloc", code: "SAM" },
+    { id: "loc-qc", name: "Quezon City", code: "QC" },
   ];
 
-  const unitCounts: Record<string, { floors: number; perFloor: number; premium: number }> = {
-    "prop-1": { floors: 20, perFloor: 8, premium: 1 },
-    "prop-2": { floors: 18, perFloor: 8, premium: 1.15 },
-    "prop-3": { floors: 15, perFloor: 6, premium: 0.9 },
-  };
+  const unitPlan: Record<string, number> = { "loc-tug": 10, "loc-pen": 6, "loc-sam": 8, "loc-qc": 12 };
 
   // ---------------------------------------------------------------- units
   const units: Unit[] = [];
-  for (const property of properties) {
-    const plan = unitCounts[property.id];
-    for (let floor = 1; floor <= plan.floors; floor += 1) {
-      for (let slot = 0; slot < plan.perFloor; slot += 1) {
-        const roll = random();
-        let acc = 0;
-        const spec = UNIT_TYPES.find((candidate) => {
-          acc += candidate.weight;
-          return roll <= acc;
-        })!;
+  let meterSeq = 4500;
 
-        const statusRoll = random();
-        const status: UnitStatus =
-          statusRoll < 0.82 ? "occupied" : statusRoll < 0.9 ? "vacant" : statusRoll < 0.96 ? "reserved" : "maintenance";
+  for (const location of locations) {
+    const count = unitPlan[location.id];
+    for (let i = 0; i < count; i += 1) {
+      const floor = Math.floor(i / 4) + 1;
+      const letter = String.fromCharCode(65 + (i % 4));
+      const code = `${floor}${letter}`;
 
-        const rent = Math.round((spec.rent * plan.premium * (1 + floor / 200)) / 100) * 100;
+      const category: UnitCategory = random() < 0.3 ? "commercial" : "residential";
+      const tenancy = category === "commercial" ? (random() < 0.6 ? "long-term" : "short-term") : random() < 0.7 ? "long-term" : "short-term";
 
-        units.push({
-          id: `unit-${property.code}-${floor}${UNIT_LETTERS[slot]}`,
-          code: `${floor}${UNIT_LETTERS[slot]}`,
-          propertyId: property.id,
-          type: spec.type,
-          floor,
-          rent,
-          dues: Math.round((rent * 0.08) / 50) * 50,
-          status,
-          residentId: null,
-        });
-      }
+      const rent =
+        category === "commercial" ? money(18_000, 55_000, 500) : money(8_000, 24_000, 500);
+
+      meterSeq += between(3, 9);
+      const electricMeterNo = `${location.code}-E${pad(meterSeq, 5)}`;
+      meterSeq += between(3, 9);
+      const waterMeterNo = `${location.code}-W${pad(meterSeq, 5)}`;
+
+      const statusRoll = random();
+      const status = statusRoll < 0.8 ? "occupied" : statusRoll < 0.92 ? "vacant" : "maintenance";
+
+      units.push({
+        id: `unit-${location.code}-${code}`,
+        code,
+        locationId: location.id,
+        category,
+        tenancy,
+        owner: OWNERS_BY_LOCATION[location.id],
+        rent,
+        electricMeterNo,
+        waterMeterNo,
+        depositMonths: 1,
+        advanceMonths: 1,
+        furnished: category === "residential" && random() < 0.7,
+        inventory: category === "residential" ? RESIDENTIAL_INVENTORY : COMMERCIAL_INVENTORY,
+        status,
+        tenantId: null,
+      });
     }
   }
 
-  // ------------------------------------------------------------ residents
-  const residents: Resident[] = [];
+  // -------------------------------------------------------------- tenants
+  const tenants: Tenant[] = [];
   const usedNames = new Set<string>();
-  let residentSeq = 0;
+  let tenantSeq = 0;
 
   const nextName = () => {
     for (let attempt = 0; attempt < 200; attempt += 1) {
@@ -161,253 +178,252 @@ export function createSeedDatabase(now = new Date()): Database {
     return fallback;
   };
 
-  const makeResident = (unit: Unit | null, status: Resident["status"]): Resident => {
-    residentSeq += 1;
+  for (const unit of units) {
+    if (unit.status !== "occupied") continue;
+
+    tenantSeq += 1;
     const name = nextName();
     const handle = name.toLowerCase().replace(/[^a-z]+/g, ".");
-    const leaseStart = unit ? addMonths(now, -between(1, 30)) : null;
-    const termMonths = pick([12, 12, 12, 24]);
+    const termMonths = unit.tenancy === "long-term" ? pick([12, 12, 24]) : pick([1, 1, 3, 6]);
+    const leaseStart = addMonths(now, -between(0, termMonths - 1 > 0 ? termMonths - 1 : 1));
+    // Auto-renew anything that would already be expired so the demo has live leases.
+    let leaseEnd = addMonths(leaseStart, termMonths);
+    if (leaseEnd.getTime() <= now.getTime()) leaseEnd = addMonths(now, between(2, termMonths));
 
-    return {
-      id: `res-${pad(residentSeq, 4)}`,
+    tenants.push({
+      id: `ten-${pad(tenantSeq, 4)}`,
       name,
       email: `${handle}@example.com`,
-      phone: `+63 9${between(10, 99)} ${between(100, 999)} ${between(1000, 9999)}`,
-      unitId: unit?.id ?? null,
-      leaseStart: leaseStart ? isoDate(leaseStart) : null,
-      leaseEnd: leaseStart ? isoDate(addMonths(leaseStart, termMonths)) : null,
-      status,
-      createdAt: (leaseStart ? addDays(leaseStart, -between(5, 40)) : addMonths(now, -between(1, 20))).toISOString(),
-    };
-  };
-
-  for (const unit of units) {
-    if (unit.status === "occupied") {
-      const resident = makeResident(unit, "active");
-      // A lease inside its final 30 days is surfaced as expiring.
-      if (resident.leaseEnd) {
-        const daysLeft = (new Date(resident.leaseEnd).getTime() - now.getTime()) / 86_400_000;
-        if (daysLeft < 0) {
-          // Auto-renew anything that already lapsed so the demo has no dangling leases.
-          resident.leaseEnd = isoDate(addMonths(now, between(2, 18)));
-        } else if (daysLeft <= 30) {
-          resident.status = "expiring";
-        }
-      }
-      unit.residentId = resident.id;
-      residents.push(resident);
-    } else if (unit.status === "reserved") {
-      const resident = makeResident(unit, "pending");
-      resident.leaseStart = isoDate(addDays(now, between(3, 45)));
-      resident.leaseEnd = isoDate(addMonths(new Date(resident.leaseStart), 12));
-      unit.residentId = resident.id;
-      residents.push(resident);
-    }
+      phone: `09${between(10, 99)} ${between(100, 999)} ${between(1000, 9999)}`,
+      homeAddress: pick([
+        "Brgy. Ugac Sur, Tuguegarao City, Cagayan",
+        "PH4 B14 L9 Avida Settings Nuvali, Calamba, Laguna",
+        "Brgy. Caggay, Tuguegarao City, Cagayan",
+        "Brgy. Sampaloc, Manila",
+        "Brgy. Commonwealth, Quezon City",
+      ]),
+      unitId: unit.id,
+      lessor: unit.owner,
+      contractType: unit.tenancy === "long-term" ? "residential" : "accommodation",
+      leaseStart: isoDate(leaseStart),
+      leaseEnd: isoDate(leaseEnd),
+      termMonths,
+      monthlyRent: unit.rent,
+      dueDay: 15,
+      depositAmount: unit.rent * unit.depositMonths,
+      advanceAmount: unit.rent * unit.advanceMonths,
+      paymentMode: unit.tenancy === "long-term" ? "pdc" : pick(["gcash", "bank-transfer", "cash"]),
+      inventory: unit.inventory,
+      status: "current",
+      createdAt: addDays(leaseStart, -between(2, 15)).toISOString(),
+    });
+    unit.tenantId = tenants[tenants.length - 1].id;
   }
 
-  for (let i = 0; i < 12; i += 1) {
-    residents.push(makeResident(null, "blacklisted"));
-  }
-
-  const residentById = new Map(residents.map((resident) => [resident.id, resident]));
+  const tenantById = new Map(tenants.map((tenant) => [tenant.id, tenant]));
   const unitById = new Map(units.map((unit) => [unit.id, unit]));
-
-  // ------------------------------------------------------------- invoices
-  const periods = recentPeriods(now, 6);
-  const invoices: Invoice[] = [];
-  let invoiceSeq = 0;
   const today = isoDate(now);
+
+  // ---------------------------------------------------------------- bills
+  const periods = recentPeriods(now, 6);
+  const bills: Bill[] = [];
+  let billSeq = 0;
 
   for (const period of periods) {
     const isCurrent = period === periods[periods.length - 1];
-    for (const unit of units) {
-      if (unit.status !== "occupied" || !unit.residentId) continue;
-      const resident = residentById.get(unit.residentId)!;
-      if (resident.leaseStart && resident.leaseStart.slice(0, 7) > period) continue;
+    for (const tenant of tenants) {
+      if (!tenant.unitId || !tenant.leaseStart) continue;
+      if (tenant.leaseStart.slice(0, 7) > period) continue;
 
-      invoiceSeq += 1;
-      const dueDate = periodDueDate(period, 5);
-      const lines = [
-        { label: "Monthly rent", amount: unit.rent },
-        { label: "Association dues", amount: unit.dues },
-      ];
-      if (random() < 0.35) lines.push({ label: "Parking slot", amount: 1_500 });
-      if (random() < 0.5) lines.push({ label: "Water & utilities", amount: between(4, 18) * 100 });
+      const unit = unitById.get(tenant.unitId)!;
+      billSeq += 1;
+      const electric = unit.status === "occupied" ? money(700, 3_800, 10) : 0;
+      const water = money(150, 850, 10);
+      const hasOther = random() < 0.2;
+      const other = hasOther ? money(300, 1_500, 50) : 0;
+      const amount = tenant.monthlyRent + electric + water + other;
+      const dueDate = periodDueDate(period, tenant.dueDay);
 
-      const amount = lines.reduce((sum, line) => sum + line.amount, 0);
-      const paidChance = isCurrent ? 0.62 : 0.96;
+      const paidChance = isCurrent ? 0.55 : 0.95;
       const isPaid = random() < paidChance;
       const overdue = !isPaid && dueDate < today;
+      const paidAt = isPaid ? addDays(new Date(dueDate), between(-6, 3)).toISOString() : null;
 
-      const paidAt = isPaid
-        ? addDays(new Date(dueDate), between(-9, 4)).toISOString()
-        : null;
-
-      invoices.push({
-        id: `inv-${pad(invoiceSeq, 5)}`,
-        number: `INV-${period.replace("-", "")}-${pad(invoiceSeq, 4)}`,
-        residentId: resident.id,
+      bills.push({
+        id: `bill-${pad(billSeq, 5)}`,
+        number: `BILL-${period.replace("-", "")}-${pad(billSeq, 4)}`,
+        tenantId: tenant.id,
         unitId: unit.id,
-        propertyId: unit.propertyId,
+        locationId: unit.locationId,
         period,
-        lines,
+        rent: tenant.monthlyRent,
+        electric,
+        water,
+        other,
+        otherLabel: hasOther ? pick(["Parking", "Association dues", "Repairs share"]) : null,
         amount,
         dueDate,
-        status: isPaid ? "paid" : overdue ? "overdue" : "pending",
         issuedAt: new Date(`${period}-01T08:00:00.000Z`).toISOString(),
+        status: isPaid ? "paid" : overdue ? "overdue" : "pending",
         payment: paidAt
           ? {
-              amount,
-              method: pick(PAYMENT_METHODS),
-              reference: `PMT-${between(100000, 999999)}`,
-              at: paidAt,
+              method: tenant.paymentMode,
+              reference: tenant.paymentMode === "pdc" ? `CHK-${between(100000, 999999)}` : `REF-${between(100000, 999999)}`,
+              date: paidAt,
+              chequeId: null,
             }
           : null,
-        remindersSent: overdue ? between(1, 3) : 0,
-        lastReminderAt: overdue ? addDays(new Date(dueDate), between(2, 10)).toISOString() : null,
         note: null,
       });
     }
   }
 
-  // ----------------------------------------------------------- facilities
-  const facilityBlueprint: Array<Omit<Facility, "id" | "propertyId">> = [
-    { name: "Function Room", capacity: 50, rateType: "hourly", rate: 2_000, status: "active", openHour: 8, closeHour: 22, requiresApproval: true },
-    { name: "Swimming Pool", capacity: 30, rateType: "free", rate: 0, status: "active", openHour: 6, closeHour: 20, requiresApproval: false },
-    { name: "Gym", capacity: 20, rateType: "monthly", rate: 500, status: "active", openHour: 5, closeHour: 22, requiresApproval: false },
-    { name: "Basketball Court", capacity: 10, rateType: "hourly", rate: 300, status: "active", openHour: 7, closeHour: 21, requiresApproval: true },
-  ];
-
-  const facilities: Facility[] = [];
-  properties.forEach((property, propertyIndex) => {
-    facilityBlueprint.forEach((blueprint, index) => {
-      facilities.push({
-        ...blueprint,
-        id: `fac-${propertyIndex + 1}-${index + 1}`,
-        propertyId: property.id,
-        status: propertyIndex === 2 && blueprint.name === "Swimming Pool" ? "maintenance" : blueprint.status,
-      });
-    });
-  });
-
-  // ------------------------------------------------------------- bookings
-  const activeResidents = residents.filter((resident) => resident.status === "active" || resident.status === "expiring");
-  const bookings: Booking[] = [];
-  for (let i = 0; i < 48; i += 1) {
-    const facility = pick(facilities.filter((item) => item.status === "active"));
-    const resident = pick(activeResidents);
-    const dayOffset = between(-14, 12);
-    const date = addDays(now, dayOffset);
-    const startHour = between(facility.openHour, facility.closeHour - 2);
-    const endHour = Math.min(startHour + between(1, 3), facility.closeHour);
-    const hours = endHour - startHour;
-
-    let status: Booking["status"];
-    if (dayOffset < 0) {
-      status = random() < 0.85 ? "completed" : random() < 0.5 ? "cancelled" : "rejected";
-    } else if (facility.requiresApproval) {
-      status = random() < 0.45 ? "pending" : random() < 0.85 ? "approved" : "rejected";
-    } else {
-      status = "approved";
+  // Flag tenants with an overdue bill.
+  for (const tenant of tenants) {
+    if (bills.some((bill) => bill.tenantId === tenant.id && bill.status === "overdue")) {
+      tenant.status = "overdue";
     }
-
-    bookings.push({
-      id: `bkg-${pad(i + 1, 4)}`,
-      facilityId: facility.id,
-      residentId: resident.id,
-      date: isoDate(date),
-      startHour,
-      endHour,
-      status,
-      fee: facility.rateType === "hourly" ? facility.rate * hours : facility.rateType === "monthly" ? facility.rate : 0,
-      note: null,
-      createdAt: addDays(date, -between(1, 9)).toISOString(),
-      decidedAt: status === "pending" ? null : addDays(date, -between(0, 3)).toISOString(),
-      decidedBy: status === "pending" ? null : pick(ACTORS),
-    });
   }
-  bookings.sort((a, b) => (a.date < b.date ? 1 : -1));
 
-  // -------------------------------------------------------- announcements
-  const announcementBlueprint: Array<{
-    title: string;
-    body: string;
-    scope: "all" | "property";
-    status: Announcement["status"];
-    daysAgo: number;
-  }> = [
+  // ------------------------------------------------------------- cheques (PDC schedule)
+  const cheques: Cheque[] = [];
+  let chequeSeq = 0;
+
+  for (const tenant of tenants) {
+    if (tenant.paymentMode !== "pdc" || !tenant.unitId || !tenant.leaseStart) continue;
+    const bank = pick(BANKS);
+    const start = new Date(tenant.leaseStart);
+
+    for (let i = 0; i < tenant.termMonths; i += 1) {
+      chequeSeq += 1;
+      const dueDate = periodDueDate(periodOf(addMonths(start, i)), tenant.dueDay);
+      const period = periodOf(addMonths(start, i));
+      let status: Cheque["status"];
+      if (dueDate < today) status = random() < 0.9 ? "deposited" : "bounced";
+      else status = "pending";
+
+      cheques.push({
+        id: `chk-${pad(chequeSeq, 5)}`,
+        tenantId: tenant.id,
+        unitId: tenant.unitId,
+        chequeNo: `${between(1000, 9999)}${between(1000, 9999)}`,
+        bank,
+        amount: tenant.monthlyRent,
+        dueDate,
+        period,
+        status,
+        billId: null,
+      });
+    }
+  }
+
+  // ---------------------------------------------------- improvement requests
+  const improvementBlueprint: Array<{ title: string; description: string; cost: number; status: ImprovementRequest["status"] }> = [
     {
-      title: "Water Interruption Notice",
-      body: "Scheduled water line maintenance will take place from 9:00 AM to 3:00 PM. Please store water in advance. We apologise for the inconvenience.",
-      scope: "property",
-      status: "sent",
-      daysAgo: 3,
+      title: "Install kitchen exhaust hood",
+      description: "Requesting permission to install a wall-mounted exhaust hood above the cooking area for better ventilation. Will be professionally installed and removable upon move-out.",
+      cost: 8_500,
+      status: "pending",
     },
     {
-      title: "Parking Fee Update Effective Next Month",
-      body: "Reserved parking slots will be adjusted to ₱1,800 per month starting next billing cycle. Existing slot holders keep their assignments.",
-      scope: "all",
-      status: "sent",
-      daysAgo: 9,
+      title: "Add partition wall for home office",
+      description: "Requesting to add a lightweight gypsum partition to create a small home office. No structural changes to the unit.",
+      cost: 15_000,
+      status: "approved",
     },
     {
-      title: "Elevator Maintenance Schedule",
-      body: "Elevator B will be offline for its annual inspection. Please use Elevator A during this period.",
-      scope: "property",
-      status: "draft",
-      daysAgo: 1,
+      title: "Repaint interior walls",
+      description: "Requesting to repaint the living area from white to a warm neutral tone. Will restore to original color at end of lease if required.",
+      cost: 6_000,
+      status: "rejected",
     },
     {
-      title: "Community Fun Run",
-      body: "Join our community fun run at the podium deck. Registration is free for all residents and one guest.",
-      scope: "all",
-      status: "sent",
-      daysAgo: 16,
+      title: "Upgrade to grease trap for food stall",
+      description: "For the commercial space — requesting installation of a compliant grease trap required by the LGU for food operations.",
+      cost: 22_000,
+      status: "completed",
     },
     {
-      title: "Fire Drill Advisory",
-      body: "A building-wide fire drill will be conducted. Alarms will sound for approximately ten minutes.",
-      scope: "all",
-      status: "sent",
-      daysAgo: 24,
-    },
-    {
-      title: "Holiday Billing Cut-off",
-      body: "Payment counters will be closed during the holiday. Online payments remain available 24/7.",
-      scope: "all",
-      status: "draft",
-      daysAgo: 0,
+      title: "Install water filtration system",
+      description: "Requesting to install an under-sink water filtration unit. Plumbing tap-in only, fully reversible.",
+      cost: 4_500,
+      status: "pending",
     },
   ];
 
-  const announcements: Announcement[] = announcementBlueprint.map((blueprint, index) => {
-    const property = blueprint.scope === "property" ? properties[index % properties.length] : null;
-    const recipients =
-      blueprint.status === "sent"
-        ? property
-          ? units.filter((unit) => unit.propertyId === property.id && unit.status === "occupied").length
-          : units.filter((unit) => unit.status === "occupied").length
-        : 0;
-
-    const createdAt = addDays(now, -blueprint.daysAgo);
+  const occupiedTenants = tenants.filter((tenant) => tenant.unitId);
+  const improvements: ImprovementRequest[] = improvementBlueprint.map((blueprint, index) => {
+    const tenant = occupiedTenants[(index * 3) % occupiedTenants.length];
+    const createdAt = addDays(now, -between(2, 40));
     return {
-      id: `ann-${pad(index + 1, 3)}`,
+      id: `imp-${pad(index + 1, 4)}`,
+      tenantId: tenant.id,
+      unitId: tenant.unitId!,
       title: blueprint.title,
-      body: blueprint.body,
-      audience: {
-        scope: blueprint.scope,
-        propertyId: property?.id ?? null,
-        unitCodes: [],
-      },
-      channels: { email: true, push: true, sms: blueprint.title.includes("Water") },
+      description: blueprint.description,
+      estimatedCost: blueprint.cost,
       status: blueprint.status,
-      createdBy: ADMIN,
       createdAt: createdAt.toISOString(),
-      sentAt: blueprint.status === "sent" ? createdAt.toISOString() : null,
-      recipients,
-      reads: blueprint.status === "sent" ? Math.round(recipients * (0.9 + random() * 0.09)) : 0,
+      decidedAt: blueprint.status === "pending" ? null : addDays(createdAt, between(1, 5)).toISOString(),
+      ownerResponse:
+        blueprint.status === "approved"
+          ? "Approved provided all work is professional and reversible at end of lease."
+          : blueprint.status === "rejected"
+            ? "Not approved at this time due to the strict no-alteration clause. Let's discuss alternatives."
+            : blueprint.status === "completed"
+              ? "Completed and inspected. Compliant with LGU requirements."
+              : null,
     };
   });
+
+  // -------------------------------------------------------- announcements
+  const announcements: Announcement[] = [
+    {
+      id: "ann-001",
+      title: "Water Interruption Advisory",
+      body: "Please be advised that the local water district will conduct maintenance from 9:00 AM to 3:00 PM. Kindly store water in advance.",
+      audience: { scope: "location", locationId: "loc-tug" },
+      channels: { email: true, sms: true },
+      status: "sent",
+      createdBy: ADMIN,
+      createdAt: addDays(now, -4).toISOString(),
+      sentAt: addDays(now, -4).toISOString(),
+      recipients: units.filter((unit) => unit.locationId === "loc-tug" && unit.status === "occupied").length,
+      reads: 0,
+    },
+    {
+      id: "ann-002",
+      title: "Reminder: Rent Due Every 15th",
+      body: "A friendly reminder that rent is due every 15th of the month. A 10% penalty applies to payments delayed by more than one month. Thank you for your prompt settlement.",
+      audience: { scope: "all", locationId: null },
+      channels: { email: true, sms: false },
+      status: "sent",
+      createdBy: ADMIN,
+      createdAt: addDays(now, -10).toISOString(),
+      sentAt: addDays(now, -10).toISOString(),
+      recipients: units.filter((unit) => unit.status === "occupied").length,
+      reads: 0,
+    },
+    {
+      id: "ann-003",
+      title: "Holiday Office Hours",
+      body: "The admin office will be closed on the upcoming holiday. For emergencies, please contact the property admin directly.",
+      audience: { scope: "all", locationId: null },
+      channels: { email: true, sms: false },
+      status: "draft",
+      createdBy: ADMIN,
+      createdAt: addDays(now, -1).toISOString(),
+      sentAt: null,
+      recipients: 0,
+      reads: 0,
+    },
+  ];
+
+  for (const announcement of announcements) {
+    if (announcement.status === "sent") {
+      announcement.reads = Math.round(announcement.recipients * (0.8 + random() * 0.18));
+    }
+  }
 
   // ------------------------------------------------------------ audit log
   const auditLogs: AuditLog[] = [];
@@ -421,78 +437,71 @@ export function createSeedDatabase(now = new Date()): Database {
       action,
       module,
       description,
-      ip: IPS[actor] ?? "192.168.1.100",
       success,
     });
   };
 
-  for (const period of periods) {
-    const generated = invoices.filter((invoice) => invoice.period === period);
+  for (const tenant of tenants.slice(0, 12)) {
+    const unit = tenant.unitId ? unitById.get(tenant.unitId) : null;
     log(
-      new Date(`${period}-01T08:00:00.000Z`),
+      new Date(tenant.createdAt),
+      pick(ACTORS),
+      "create",
+      "Tenants",
+      unit ? `Onboarded ${tenant.name} to Unit ${unit.code} and generated ${tenant.contractType} contract` : `Onboarded ${tenant.name}`,
+    );
+  }
+
+  for (const period of periods) {
+    const generated = bills.filter((bill) => bill.period === period);
+    log(
+      new Date(`${period}-01T08:05:00.000Z`),
       ADMIN,
       "create",
       "Billing",
-      `Billing cycle generated for ${formatPeriod(period)} — ${generated.length} invoices, ${formatMoney(
-        generated.reduce((sum, invoice) => sum + invoice.amount, 0),
+      `Bills generated for ${formatPeriod(period)} — ${generated.length} bills, ${formatMoney(
+        generated.reduce((sum, bill) => sum + bill.amount, 0),
       )}`,
     );
   }
 
-  for (const invoice of invoices.filter((item) => item.payment).slice(-24)) {
+  for (const bill of bills.filter((item) => item.payment).slice(-20)) {
+    const tenant = tenantById.get(bill.tenantId);
     log(
-      new Date(invoice.payment!.at),
+      new Date(bill.payment!.date),
       pick(ACTORS),
       "update",
       "Billing",
-      `Payment ${formatMoney(invoice.payment!.amount)} recorded for ${invoice.number} (${invoice.payment!.method})`,
+      `Payment ${formatMoney(bill.amount)} recorded for ${bill.number} (${bill.payment!.method}) — ${tenant?.name ?? ""}`,
     );
   }
 
-  for (const announcement of announcements.filter((item) => item.sentAt)) {
+  for (const cheque of cheques.filter((item) => item.status === "bounced").slice(0, 6)) {
+    const tenant = tenantById.get(cheque.tenantId);
     log(
-      new Date(announcement.sentAt!),
-      announcement.createdBy,
-      "create",
-      "Announcements",
-      `Announcement "${announcement.title}" sent to ${announcement.recipients} residents`,
-    );
-  }
-
-  for (const booking of bookings.filter((item) => item.decidedAt).slice(0, 14)) {
-    const facility = facilities.find((item) => item.id === booking.facilityId)!;
-    const resident = residentById.get(booking.residentId)!;
-    log(
-      new Date(booking.decidedAt!),
-      booking.decidedBy ?? ADMIN,
+      new Date(cheque.dueDate),
+      ADMIN,
       "update",
-      "Facilities",
-      `Booking for ${facility.name} by ${resident.name} marked ${booking.status}`,
+      "Billing",
+      `Cheque ${cheque.chequeNo} (${cheque.bank}) BOUNCED for ${tenant?.name ?? ""} — ${formatMoney(cheque.amount)}`,
+      false,
     );
   }
 
-  for (const resident of residents.slice(0, 10)) {
-    const unit = resident.unitId ? unitById.get(resident.unitId) : null;
+  for (const improvement of improvements) {
+    const tenant = tenantById.get(improvement.tenantId);
     log(
-      new Date(resident.createdAt),
-      pick(ACTORS),
+      new Date(improvement.createdAt),
+      tenant?.name ?? ADMIN,
       "create",
-      "Residents",
-      unit ? `Added resident ${resident.name} to Unit ${unit.code}` : `Added resident ${resident.name}`,
+      "Improvements",
+      `Improvement request "${improvement.title}" submitted by ${tenant?.name ?? ""}`,
     );
   }
 
-  for (let i = 0; i < 12; i += 1) {
-    const actor = pick(ACTORS);
+  for (let i = 0; i < 6; i += 1) {
     const success = random() > 0.15;
-    log(
-      addDays(now, -between(0, 20)),
-      actor,
-      "login",
-      "System",
-      success ? "User logged in successfully" : "Failed login attempt — invalid password",
-      success,
-    );
+    log(addDays(now, -between(0, 15)), pick(ACTORS), "login", "System", success ? "User logged in successfully" : "Failed login attempt", success);
   }
 
   auditLogs.sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -500,23 +509,22 @@ export function createSeedDatabase(now = new Date()): Database {
   return {
     version: DB_VERSION,
     seededAt: now.toISOString(),
-    properties,
+    locations,
     units,
-    residents,
-    invoices,
+    tenants,
+    bills,
+    cheques,
+    improvements,
     announcements,
-    facilities,
-    bookings,
     auditLogs,
     settings: {
-      orgName: "Tenantra Property Group",
+      orgName: "SJ Edward Builders — Property Management",
       adminName: ADMIN,
       adminEmail: "admin@tenantra.local",
       currency: "PHP",
-      billingDueDay: 5,
-      gracePeriodDays: 3,
-      lateFeePercent: 2,
-      channels: { email: true, push: true, sms: false },
+      billingDueDay: 15,
+      lateFeePercent: 10,
+      channels: { email: true, sms: false },
     },
   };
 }

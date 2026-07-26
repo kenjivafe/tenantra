@@ -12,9 +12,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const asOf = today();
 
   const badges = {
-    "/billing": db.invoices.filter((invoice) => effectiveStatus(invoice, asOf) === "overdue").length,
-    "/facilities": db.bookings.filter((booking) => booking.status === "pending").length,
-    "/residents": db.residents.filter((resident) => resident.status === "pending").length,
+    "/billing": db.bills.filter((bill) => effectiveStatus(bill, asOf) === "overdue").length,
+    "/improvements": db.improvements.filter((item) => item.status === "pending").length,
   };
 
   return (

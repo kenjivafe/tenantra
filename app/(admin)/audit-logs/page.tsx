@@ -17,7 +17,6 @@ export default function AuditLogsPage() {
     action: log.action,
     module: log.module,
     description: log.description,
-    ip: log.ip,
     success: log.success,
   }));
 
@@ -28,12 +27,7 @@ export default function AuditLogsPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Activities (30 days)" value={formatNumber(stats.total30d)} padding="sm" />
         <StatCard label="Successful Actions" value={formatNumber(stats.successful)} tone="success" padding="sm" />
-        <StatCard
-          label="Failed Attempts"
-          value={formatNumber(stats.failed)}
-          tone={stats.failed > 0 ? "danger" : "success"}
-          padding="sm"
-        />
+        <StatCard label="Failed / Bounced" value={formatNumber(stats.failed)} tone={stats.failed > 0 ? "danger" : "success"} padding="sm" />
         <StatCard label="Active Users" value={formatNumber(stats.actors)} padding="sm" />
       </div>
     </div>

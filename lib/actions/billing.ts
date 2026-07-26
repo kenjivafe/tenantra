@@ -4,112 +4,21 @@ import { fail, ok, readNumber, readString, withAudit } from "@/lib/actions/commo
 import { effectiveStatus, today } from "@/lib/data";
 import { periodDueDate } from "@/lib/seed";
 import { formatMoney, formatPeriod } from "@/lib/format";
-import type { ActionResult, Database, Invoice, InvoiceLine, PaymentMethod } from "@/lib/types";
+import type { ActionResult, Bill, Database, PaymentMethod } from "@/lib/types";
 
-const METHODS: PaymentMethod[] = ["cash", "bank-transfer", "gcash", "card", "check"];
+const METHODS: PaymentMethod[] = ["cash", "gcash", "pdc", "bank-transfer"];
 
-function nextInvoiceNumber(db: Database, period: string, offset = 0) {
-  const sequence = db.invoices.length + 1 + offset;
-  return `INV-${period.replace("-", "")}-${String(sequence).padStart(4, "0")}`;
+function newBillId(db: Database, offset = 0) {
+  return `bill-${String(db.bills.length + 1 + offset).padStart(5, "0")}-${Date.now().toString(36)}`;
 }
 
-function newInvoiceId(db: Database, offset = 0) {
-  return `inv-${String(db.invoices.length + 1 + offset).padStart(5, "0")}-${Date.now().toString(36)}`;
-}
-
-export async function recordPaymentAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const invoiceId = readString(formData, "invoiceId");
-  const method = readString(formData, "method") as PaymentMethod;
-  const amount = readNumber(formData, "amount");
-  const reference = readString(formData, "reference");
-
-  if (!METHODS.includes(method)) return fail("Choose a valid payment method.");
-  if (amount <= 0) return fail("Payment amount must be greater than zero.");
-
-  try {
-    return withAudit("update", "Billing", (db) => {
-      const invoice = db.invoices.find((item) => item.id === invoiceId);
-      if (!invoice) throw new Error("Invoice not found.");
-      if (invoice.status === "paid") throw new Error(`${invoice.number} is already settled.`);
-
-      invoice.status = "paid";
-      invoice.payment = {
-        amount,
-        method,
-        reference: reference || `PMT-${Date.now().toString().slice(-6)}`,
-        at: new Date().toISOString(),
-      };
-
-      return {
-        result: ok(`Payment of ${formatMoney(amount)} recorded for ${invoice.number}.`),
-        description: `Payment ${formatMoney(amount)} recorded for ${invoice.number} (${method})`,
-      };
-    });
-  } catch (error) {
-    return fail(error instanceof Error ? error.message : "Could not record the payment.");
-  }
-}
-
-export async function sendReminderAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const invoiceId = readString(formData, "invoiceId");
-
-  try {
-    return withAudit("update", "Billing", (db) => {
-      const invoice = db.invoices.find((item) => item.id === invoiceId);
-      if (!invoice) throw new Error("Invoice not found.");
-      if (invoice.status === "paid") throw new Error(`${invoice.number} is already paid.`);
-
-      invoice.remindersSent += 1;
-      invoice.lastReminderAt = new Date().toISOString();
-      const resident = db.residents.find((item) => item.id === invoice.residentId);
-
-      return {
-        result: ok(`Reminder #${invoice.remindersSent} sent to ${resident?.name ?? "resident"}.`),
-        description: `Payment reminder sent for ${invoice.number} to ${resident?.email ?? "resident"}`,
-      };
-    });
-  } catch (error) {
-    return fail(error instanceof Error ? error.message : "Could not send the reminder.");
-  }
-}
-
-export async function sendBulkRemindersAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const period = readString(formData, "period");
-  const asOf = today();
-
-  try {
-    return withAudit("update", "Billing", (db) => {
-      const targets = db.invoices.filter(
-        (invoice) =>
-          effectiveStatus(invoice, asOf) === "overdue" && (period ? invoice.period === period : true),
-      );
-      if (targets.length === 0) throw new Error("No overdue invoices to remind.");
-
-      const now = new Date().toISOString();
-      let amount = 0;
-      for (const invoice of targets) {
-        invoice.remindersSent += 1;
-        invoice.lastReminderAt = now;
-        amount += invoice.amount;
-      }
-
-      return {
-        result: ok(`Reminders sent for ${targets.length} overdue invoices (${formatMoney(amount)}).`),
-        description: `Bulk reminder sent for ${targets.length} overdue invoices totalling ${formatMoney(amount)}`,
-      };
-    });
-  } catch (error) {
-    return fail(error instanceof Error ? error.message : "Could not send reminders.");
-  }
+function billNumber(db: Database, period: string, offset = 0) {
+  return `BILL-${period.replace("-", "")}-${String(db.bills.length + 1 + offset).padStart(4, "0")}`;
 }
 
 export async function runBillingCycleAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const period = readString(formData, "period");
-  const propertyId = readString(formData, "propertyId");
-  const dueDay = Math.min(Math.max(readNumber(formData, "dueDay", 5), 1), 28);
-  const includeDues = readString(formData, "includeDues") !== "false";
-  const includeParking = readString(formData, "includeParking") === "true";
-  const parkingFee = readNumber(formData, "parkingFee", 1500);
+  const locationId = readString(formData, "locationId");
 
   if (!/^\d{4}-\d{2}$/.test(period)) return fail("Select a billing period.");
 
@@ -118,58 +27,52 @@ export async function runBillingCycleAction(_prev: ActionResult | null, formData
       const scoped = db.units.filter(
         (unit) =>
           unit.status === "occupied" &&
-          unit.residentId !== null &&
-          (propertyId && propertyId !== "all" ? unit.propertyId === propertyId : true),
+          unit.tenantId !== null &&
+          (locationId && locationId !== "all" ? unit.locationId === locationId : true),
       );
 
-      const alreadyBilled = new Set(
-        db.invoices.filter((invoice) => invoice.period === period).map((invoice) => invoice.unitId),
-      );
+      const alreadyBilled = new Set(db.bills.filter((bill) => bill.period === period).map((bill) => bill.unitId));
       const pending = scoped.filter((unit) => !alreadyBilled.has(unit.id));
+      if (pending.length === 0) throw new Error(`Every occupied unit already has a bill for ${formatPeriod(period)}.`);
 
-      if (pending.length === 0) {
-        throw new Error(`Every eligible unit already has an invoice for ${formatPeriod(period)}.`);
-      }
-
-      const dueDate = periodDueDate(period, dueDay);
       const issuedAt = new Date().toISOString();
       let total = 0;
 
       pending.forEach((unit, index) => {
-        const lines: InvoiceLine[] = [{ label: "Monthly rent", amount: unit.rent }];
-        if (includeDues) lines.push({ label: "Association dues", amount: unit.dues });
-        if (includeParking) lines.push({ label: "Parking slot", amount: parkingFee });
-        const amount = lines.reduce((sum, line) => sum + line.amount, 0);
-        total += amount;
-
-        const invoice: Invoice = {
-          id: newInvoiceId(db, index),
-          number: nextInvoiceNumber(db, period, index),
-          residentId: unit.residentId,
+        const tenant = db.tenants.find((item) => item.id === unit.tenantId);
+        if (!tenant) return;
+        const dueDate = periodDueDate(period, tenant.dueDay);
+        const bill: Bill = {
+          id: newBillId(db, index),
+          number: billNumber(db, period, index),
+          tenantId: tenant.id,
           unitId: unit.id,
-          propertyId: unit.propertyId,
+          locationId: unit.locationId,
           period,
-          lines,
-          amount,
+          rent: tenant.monthlyRent,
+          electric: 0,
+          water: 0,
+          other: 0,
+          otherLabel: null,
+          amount: tenant.monthlyRent,
           dueDate,
-          status: "pending",
           issuedAt,
+          status: "pending",
           payment: null,
-          remindersSent: 0,
-          lastReminderAt: null,
-          note: null,
+          note: "Rent only — add electric/water readings before sending.",
         };
-        db.invoices.push(invoice);
+        db.bills.push(bill);
+        total += bill.amount;
       });
 
       const scopeLabel =
-        propertyId && propertyId !== "all"
-          ? (db.properties.find((property) => property.id === propertyId)?.name ?? "selected property")
-          : "all properties";
+        locationId && locationId !== "all"
+          ? (db.locations.find((location) => location.id === locationId)?.name ?? "location")
+          : "all locations";
 
       return {
-        result: ok(`Generated ${pending.length} invoices for ${formatPeriod(period)} — ${formatMoney(total)}.`),
-        description: `Billing cycle generated for ${formatPeriod(period)} (${scopeLabel}) — ${pending.length} invoices, ${formatMoney(total)}`,
+        result: ok(`Generated ${pending.length} rent bills for ${formatPeriod(period)} — add utilities per unit.`),
+        description: `Ran billing cycle for ${formatPeriod(period)} (${scopeLabel}) — ${pending.length} bills, ${formatMoney(total)}`,
       };
     });
   } catch (error) {
@@ -177,75 +80,183 @@ export async function runBillingCycleAction(_prev: ActionResult | null, formData
   }
 }
 
-export async function createInvoiceAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const unitId = readString(formData, "unitId");
+export async function createBillAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const tenantId = readString(formData, "tenantId");
   const period = readString(formData, "period");
-  const dueDate = readString(formData, "dueDate");
-  const note = readString(formData, "note");
+  const rent = readNumber(formData, "rent");
+  const electric = readNumber(formData, "electric");
+  const water = readNumber(formData, "water");
+  const other = readNumber(formData, "other");
+  const otherLabel = readString(formData, "otherLabel");
 
-  const labels = formData.getAll("lineLabel").map((value) => String(value).trim());
-  const amounts = formData.getAll("lineAmount").map((value) => Number(value));
-  const lines: InvoiceLine[] = labels
-    .map((label, index) => ({ label, amount: amounts[index] }))
-    .filter((line) => line.label.length > 0 && Number.isFinite(line.amount) && line.amount > 0);
-
-  if (!unitId) return fail("Select a unit to bill.");
+  if (!tenantId) return fail("Select a tenant to bill.");
   if (!/^\d{4}-\d{2}$/.test(period)) return fail("Select a billing period.");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return fail("Select a due date.");
-  if (lines.length === 0) return fail("Add at least one line item with an amount.");
+  if (rent < 0 || electric < 0 || water < 0 || other < 0) return fail("Amounts cannot be negative.");
+  if (rent + electric + water + other <= 0) return fail("Enter at least one charge.");
 
   try {
     return withAudit("create", "Billing", (db) => {
-      const unit = db.units.find((item) => item.id === unitId);
+      const tenant = db.tenants.find((item) => item.id === tenantId);
+      if (!tenant || !tenant.unitId) throw new Error("Tenant has no assigned unit.");
+      const unit = db.units.find((item) => item.id === tenant.unitId);
       if (!unit) throw new Error("Unit not found.");
 
-      const amount = lines.reduce((sum, line) => sum + line.amount, 0);
-      const invoice: Invoice = {
-        id: newInvoiceId(db),
-        number: nextInvoiceNumber(db, period),
-        residentId: unit.residentId,
+      const amount = rent + electric + water + other;
+      const bill: Bill = {
+        id: newBillId(db),
+        number: billNumber(db, period),
+        tenantId: tenant.id,
         unitId: unit.id,
-        propertyId: unit.propertyId,
+        locationId: unit.locationId,
         period,
-        lines,
+        rent,
+        electric,
+        water,
+        other,
+        otherLabel: other > 0 ? otherLabel || "Other charge" : null,
         amount,
-        dueDate,
-        status: "pending",
+        dueDate: periodDueDate(period, tenant.dueDay),
         issuedAt: new Date().toISOString(),
+        status: "pending",
         payment: null,
-        remindersSent: 0,
-        lastReminderAt: null,
-        note: note || null,
+        note: null,
       };
-      db.invoices.push(invoice);
-      const resident = db.residents.find((item) => item.id === unit.residentId);
+      db.bills.push(bill);
 
       return {
-        result: ok(`${invoice.number} created for Unit ${unit.code} — ${formatMoney(amount)}.`),
-        description: `Created manual invoice ${invoice.number} for ${resident?.name ?? `Unit ${unit.code}`} — ${formatMoney(amount)}`,
+        result: ok(`${bill.number} created for ${tenant.name} — ${formatMoney(amount)}.`),
+        description: `Created bill ${bill.number} for ${tenant.name} — rent ${formatMoney(rent)}, electric ${formatMoney(
+          electric,
+        )}, water ${formatMoney(water)}`,
       };
     });
   } catch (error) {
-    return fail(error instanceof Error ? error.message : "Could not create the invoice.");
+    return fail(error instanceof Error ? error.message : "Could not create the bill.");
   }
 }
 
-export async function voidInvoiceAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const invoiceId = readString(formData, "invoiceId");
+export async function updateBillAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const billId = readString(formData, "billId");
+  const electric = readNumber(formData, "electric");
+  const water = readNumber(formData, "water");
+  const other = readNumber(formData, "other");
+  const otherLabel = readString(formData, "otherLabel");
+
+  if (electric < 0 || water < 0 || other < 0) return fail("Amounts cannot be negative.");
 
   try {
     return withAudit("update", "Billing", (db) => {
-      const invoice = db.invoices.find((item) => item.id === invoiceId);
-      if (!invoice) throw new Error("Invoice not found.");
-      if (invoice.status === "paid") throw new Error("Paid invoices cannot be voided.");
+      const bill = db.bills.find((item) => item.id === billId);
+      if (!bill) throw new Error("Bill not found.");
+      if (bill.status === "paid") throw new Error(`${bill.number} is already settled.`);
 
-      invoice.status = "void";
+      bill.electric = electric;
+      bill.water = water;
+      bill.other = other;
+      bill.otherLabel = other > 0 ? otherLabel || "Other charge" : null;
+      bill.amount = bill.rent + electric + water + other;
+      bill.note = null;
+
       return {
-        result: ok(`${invoice.number} voided.`),
-        description: `Voided invoice ${invoice.number}`,
+        result: ok(`${bill.number} updated — ${formatMoney(bill.amount)}.`),
+        description: `Updated utilities on ${bill.number}: electric ${formatMoney(electric)}, water ${formatMoney(water)}`,
       };
     });
   } catch (error) {
-    return fail(error instanceof Error ? error.message : "Could not void the invoice.");
+    return fail(error instanceof Error ? error.message : "Could not update the bill.");
+  }
+}
+
+export async function recordPaymentAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const billId = readString(formData, "billId");
+  const method = readString(formData, "method") as PaymentMethod;
+  const reference = readString(formData, "reference");
+
+  if (!METHODS.includes(method)) return fail("Choose a payment method.");
+
+  try {
+    return withAudit("update", "Billing", (db) => {
+      const bill = db.bills.find((item) => item.id === billId);
+      if (!bill) throw new Error("Bill not found.");
+      if (bill.status === "paid") throw new Error(`${bill.number} is already settled.`);
+
+      bill.status = "paid";
+      bill.payment = {
+        method,
+        reference: reference || `${method === "pdc" ? "CHK" : "REF"}-${Date.now().toString().slice(-6)}`,
+        date: new Date().toISOString(),
+        chequeId: null,
+      };
+      const tenant = db.tenants.find((item) => item.id === bill.tenantId);
+      // Clearing all dues lifts the tenant out of overdue.
+      if (tenant && !db.bills.some((item) => item.tenantId === tenant.id && effectiveStatus(item, today()) === "overdue")) {
+        tenant.status = "current";
+      }
+
+      return {
+        result: ok(`Payment of ${formatMoney(bill.amount)} recorded for ${bill.number}.`),
+        description: `Payment ${formatMoney(bill.amount)} recorded for ${bill.number} (${method})`,
+      };
+    });
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : "Could not record the payment.");
+  }
+}
+
+export async function voidBillAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const billId = readString(formData, "billId");
+
+  try {
+    return withAudit("update", "Billing", (db) => {
+      const bill = db.bills.find((item) => item.id === billId);
+      if (!bill) throw new Error("Bill not found.");
+      if (bill.status === "paid") throw new Error("Paid bills cannot be voided.");
+      bill.status = "void";
+      return { result: ok(`${bill.number} voided.`), description: `Voided bill ${bill.number}` };
+    });
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : "Could not void the bill.");
+  }
+}
+
+export async function markChequeAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const chequeId = readString(formData, "chequeId");
+  const status = readString(formData, "status") as "deposited" | "bounced";
+
+  if (status !== "deposited" && status !== "bounced") return fail("Choose deposited or bounced.");
+
+  try {
+    return withAudit("update", "Billing", (db) => {
+      const cheque = db.cheques.find((item) => item.id === chequeId);
+      if (!cheque) throw new Error("Cheque not found.");
+      const tenant = db.tenants.find((item) => item.id === cheque.tenantId);
+      cheque.status = status;
+
+      // Settle or reopen the matching period's bill.
+      const bill = db.bills.find(
+        (item) => item.tenantId === cheque.tenantId && item.period === cheque.period && item.status !== "void",
+      );
+      if (status === "deposited" && bill && bill.status !== "paid") {
+        bill.status = "paid";
+        bill.payment = { method: "pdc", reference: `CHK-${cheque.chequeNo}`, date: new Date().toISOString(), chequeId: cheque.id };
+      }
+      if (status === "bounced") {
+        if (bill && bill.payment?.chequeId === cheque.id) {
+          bill.status = "overdue";
+          bill.payment = null;
+        }
+        if (tenant) tenant.status = "overdue";
+      }
+
+      return {
+        result: ok(`Cheque ${cheque.chequeNo} marked ${status}.`),
+        description: `Cheque ${cheque.chequeNo} (${cheque.bank}) marked ${status} for ${tenant?.name ?? "tenant"} — ${formatMoney(
+          cheque.amount,
+        )}`,
+        // Bounced cheques are recorded as a failed action for visibility in the log.
+      };
+    });
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : "Could not update the cheque.");
   }
 }

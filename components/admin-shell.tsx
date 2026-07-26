@@ -14,32 +14,37 @@ import { Sidebar, SidebarNav } from "@/components/ui/sidebar";
 
 const navItems = [
   { label: "Dashboard", href: "/" },
-  { label: "Billing", href: "/billing" },
+  { label: "Tenants", href: "/tenants" },
   { label: "Units", href: "/units" },
-  { label: "Residents", href: "/residents" },
+  { label: "Billing", href: "/billing" },
+  { label: "Calendar", href: "/calendar" },
+  { label: "Improvements", href: "/improvements" },
   { label: "Announcements", href: "/announcements" },
-  { label: "Facilities", href: "/facilities" },
-  { label: "Analytics", href: "/analytics" },
   { label: "Audit Logs", href: "/audit-logs" },
 ];
 
 const PAGES: Record<string, { title: string; description: string }> = {
-  "/": {
-    title: "Operations Dashboard",
-    description: "Monitor collections, occupancy, facility usage, and communications",
-  },
-  "/billing": { title: "Billing Management", description: "Manage invoices, collections, and billing cycles" },
-  "/billing/run": { title: "Run Billing Cycle", description: "Generate invoices for occupied units in a billing period" },
-  "/billing/create": { title: "Create Manual Invoice", description: "Bill a single unit outside the regular cycle" },
-  "/units": { title: "Units Management", description: "View and manage property units" },
-  "/residents": { title: "Residents", description: "Manage tenant information and communications" },
-  "/announcements": { title: "Announcements", description: "Send and manage community announcements" },
-  "/announcements/new": { title: "New Announcement", description: "Compose and target a message to residents" },
-  "/facilities": { title: "Facilities", description: "Manage facility bookings and maintenance" },
-  "/analytics": { title: "Analytics", description: "View property performance insights" },
-  "/audit-logs": { title: "Audit Logs", description: "View system activity and changes" },
-  "/settings": { title: "Settings", description: "Organisation profile, billing rules, and notifications" },
+  "/": { title: "Dashboard", description: "Tenants, units, and collections at a glance" },
+  "/tenants": { title: "Tenants", description: "Profiles, lease dues, and utility bills" },
+  "/tenants/new": { title: "New Tenant", description: "Onboard a tenant and auto-generate their contract" },
+  "/units": { title: "Units", description: "Commercial and residential units by location, with meter numbers" },
+  "/billing": { title: "Billing", description: "Rent, electric, and water — cash, GCash, cheque, and bank transfer" },
+  "/calendar": { title: "Calendar", description: "Rent dues, cheque deposits, and lease dates" },
+  "/improvements": { title: "Improvement Requests", description: "Tenant requests to improve or upgrade a unit" },
+  "/announcements": { title: "Announcements", description: "Send and manage tenant announcements" },
+  "/announcements/new": { title: "New Announcement", description: "Compose and target a message to tenants" },
+  "/audit-logs": { title: "Audit Logs", description: "System activity and changes" },
+  "/settings": { title: "Settings", description: "Organisation profile, locations, and billing rules" },
 };
+
+/** Nested routes (e.g. a tenant profile) fall back to their section header. */
+function pageFor(pathname: string) {
+  if (PAGES[pathname]) return PAGES[pathname];
+  if (pathname.startsWith("/tenants/")) return PAGES["/tenants"];
+  if (pathname.startsWith("/billing")) return PAGES["/billing"];
+  if (pathname.startsWith("/improvements")) return PAGES["/improvements"];
+  return { title: "Tenantra", description: "Property Management System" };
+}
 
 type Props = {
   children: ReactNode;
@@ -50,7 +55,7 @@ type Props = {
 
 export function AdminShell({ children, adminName, orgName, badges }: Props) {
   const pathname = usePathname();
-  const page = PAGES[pathname] ?? { title: "Tenantra", description: "Property Management System" };
+  const page = pageFor(pathname);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const closeDrawer = () => setIsSidebarOpen(false);
 
@@ -143,9 +148,9 @@ export function AdminShell({ children, adminName, orgName, badges }: Props) {
               </div>
               {pathname === "/" ? (
                 <div className="flex flex-wrap gap-3">
-                  <ButtonLink href="/billing/run">Run billing cycle</ButtonLink>
-                  <ButtonLink href="/announcements/new" variant="secondary">
-                    New announcement
+                  <ButtonLink href="/tenants/new">Add tenant</ButtonLink>
+                  <ButtonLink href="/billing" variant="secondary">
+                    Go to billing
                   </ButtonLink>
                 </div>
               ) : null}

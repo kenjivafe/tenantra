@@ -1,35 +1,24 @@
 "use server";
 
 import { fail, ok, readBoolean, readString, withAudit } from "@/lib/actions/common";
-import type { ActionResult, Announcement, Database } from "@/lib/types";
+import type { ActionResult, Announcement, AnnouncementAudience, Database } from "@/lib/types";
 
 function audienceOf(formData: FormData, db: Database) {
-  const scope = readString(formData, "scope") as Announcement["audience"]["scope"];
-  const propertyId = readString(formData, "propertyId");
-  const unitCodes = readString(formData, "unitCodes")
-    .split(/[,\s]+/)
-    .map((code) => code.trim().toUpperCase())
-    .filter(Boolean);
+  const scope = readString(formData, "scope") as AnnouncementAudience["scope"];
+  const locationId = readString(formData, "locationId");
 
-  if (scope === "property") {
-    const property = db.properties.find((item) => item.id === propertyId);
-    if (!property) throw new Error("Choose a property to target.");
-    return { audience: { scope, propertyId, unitCodes: [] }, label: property.name };
+  if (scope === "location") {
+    const location = db.locations.find((item) => item.id === locationId);
+    if (!location) throw new Error("Choose a location to target.");
+    return { audience: { scope, locationId }, label: location.name };
   }
-
-  if (scope === "units") {
-    if (unitCodes.length === 0) throw new Error("List at least one unit code.");
-    return { audience: { scope, propertyId: null, unitCodes }, label: `${unitCodes.length} unit(s)` };
-  }
-
-  return { audience: { scope: "all" as const, propertyId: null, unitCodes: [] }, label: "all residents" };
+  return { audience: { scope: "all" as const, locationId: null }, label: "all tenants" };
 }
 
-function countRecipients(db: Database, audience: Announcement["audience"]) {
-  const occupied = db.units.filter((unit) => unit.status === "occupied" && unit.residentId);
+function countRecipients(db: Database, audience: AnnouncementAudience) {
+  const occupied = db.units.filter((unit) => unit.status === "occupied" && unit.tenantId);
   if (audience.scope === "all") return occupied.length;
-  if (audience.scope === "property") return occupied.filter((unit) => unit.propertyId === audience.propertyId).length;
-  return occupied.filter((unit) => audience.unitCodes.includes(unit.code)).length;
+  return occupied.filter((unit) => unit.locationId === audience.locationId).length;
 }
 
 export async function saveAnnouncementAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
@@ -52,11 +41,7 @@ export async function saveAnnouncementAction(_prev: ActionResult | null, formDat
         title,
         body,
         audience,
-        channels: {
-          email: readBoolean(formData, "email"),
-          push: readBoolean(formData, "push"),
-          sms: readBoolean(formData, "sms"),
-        },
+        channels: { email: readBoolean(formData, "email"), sms: readBoolean(formData, "sms") },
         status: intent === "send" ? "sent" : "draft",
         createdBy: db.settings.adminName,
         createdAt: now,
@@ -67,11 +52,7 @@ export async function saveAnnouncementAction(_prev: ActionResult | null, formDat
       db.announcements.push(announcement);
 
       return {
-        result: ok(
-          intent === "send"
-            ? `"${title}" sent to ${recipients} resident${recipients === 1 ? "" : "s"}.`
-            : `"${title}" saved as a draft.`,
-        ),
+        result: { ...ok(intent === "send" ? `"${title}" sent to ${recipients} tenant(s).` : `"${title}" saved as a draft.`), id: announcement.id },
         description:
           intent === "send"
             ? `Announcement "${title}" sent to ${label} (${recipients} recipients)`
@@ -90,7 +71,6 @@ export async function sendAnnouncementAction(_prev: ActionResult | null, formDat
     return withAudit("update", "Announcements", (db) => {
       const announcement = db.announcements.find((item) => item.id === id);
       if (!announcement) throw new Error("Announcement not found.");
-
       const recipients = countRecipients(db, announcement.audience);
       if (recipients === 0) throw new Error("That audience has no occupied units.");
 
@@ -101,8 +81,8 @@ export async function sendAnnouncementAction(_prev: ActionResult | null, formDat
       if (!resend) announcement.reads = 0;
 
       return {
-        result: ok(`"${announcement.title}" ${resend ? "resent" : "sent"} to ${recipients} residents.`),
-        description: `Announcement "${announcement.title}" ${resend ? "resent" : "sent"} to ${recipients} residents`,
+        result: ok(`"${announcement.title}" ${resend ? "resent" : "sent"} to ${recipients} tenants.`),
+        description: `Announcement "${announcement.title}" ${resend ? "resent" : "sent"} to ${recipients} tenants`,
       };
     });
   } catch (error) {
@@ -117,12 +97,8 @@ export async function deleteAnnouncementAction(_prev: ActionResult | null, formD
     return withAudit("delete", "Announcements", (db) => {
       const announcement = db.announcements.find((item) => item.id === id);
       if (!announcement) throw new Error("Announcement not found.");
-
       db.announcements = db.announcements.filter((item) => item.id !== id);
-      return {
-        result: ok(`"${announcement.title}" deleted.`),
-        description: `Deleted ${announcement.status} announcement "${announcement.title}"`,
-      };
+      return { result: ok(`"${announcement.title}" deleted.`), description: `Deleted ${announcement.status} announcement "${announcement.title}"` };
     });
   } catch (error) {
     return fail(error instanceof Error ? error.message : "Could not delete the announcement.");

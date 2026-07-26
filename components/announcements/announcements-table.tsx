@@ -2,8 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 
-import { ButtonLink } from "@/components/ui/button";
-import { Button } from "@/components/ui/button";
+import { ButtonLink, Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FilterChips } from "@/components/ui/filter-chips";
 import { InlineSubmit, SubmitButton } from "@/components/ui/form";
@@ -17,66 +16,35 @@ import { formatDateTime } from "@/lib/format";
 
 type StatusFilter = "all" | "draft" | "sent";
 
-export function AnnouncementsTable({
-  rows,
-  properties,
-}: {
-  rows: AnnouncementRow[];
-  properties: Array<{ id: string; name: string }>;
-}) {
+export function AnnouncementsTable({ rows }: { rows: AnnouncementRow[] }) {
   const [status, setStatus] = useState<StatusFilter>("all");
-  const [propertyId, setPropertyId] = useState("all");
   const [viewing, setViewing] = useState<AnnouncementRow | null>(null);
 
   const [sendState, sendAction] = useActionState(sendAnnouncementAction, null);
   const [deleteState, deleteAction] = useActionState(deleteAnnouncementAction, null);
-
   useActionToast(sendState, () => setViewing(null));
   useActionToast(deleteState);
 
   const counts = useMemo(
     () => ({
       all: rows.length,
-      draft: rows.filter((row) => row.status === "draft").length,
-      sent: rows.filter((row) => row.status === "sent").length,
+      draft: rows.filter((r) => r.status === "draft").length,
+      sent: rows.filter((r) => r.status === "sent").length,
     }),
     [rows],
   );
 
-  const filtered = useMemo(
-    () =>
-      rows.filter((row) => {
-        if (status !== "all" && row.status !== status) return false;
-        if (propertyId === "all") return true;
-        return row.audience.scope === "all" || row.audience.propertyId === propertyId;
-      }),
-    [rows, status, propertyId],
-  );
+  const filtered = useMemo(() => (status === "all" ? rows : rows.filter((r) => r.status === status)), [rows, status]);
 
   return (
-    <>
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-3">
-          <ButtonLink href="/announcements/new">New Announcement</ButtonLink>
-        </div>
-        <select
-          aria-label="Filter by property"
-          value={propertyId}
-          onChange={(event) => setPropertyId(event.target.value)}
-          className="h-11 rounded-control border border-border/60 bg-panel px-4 text-sm text-text-primary"
-        >
-          <option value="all">All Properties</option>
-          {properties.map((property) => (
-            <option key={property.id} value={property.id}>
-              {property.name}
-            </option>
-          ))}
-        </select>
+        <ButtonLink href="/announcements/new">New Announcement</ButtonLink>
       </div>
 
       <Card className="bg-panel" padding="md">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold font-display text-text-primary">Communications</h3>
+          <h3 className="text-lg font-semibold font-display text-text-primary">Announcements</h3>
           <FilterChips
             value={status}
             onChange={setStatus}
@@ -92,41 +60,33 @@ export function AnnouncementsTable({
           <thead>
             <tr className="border-b border-border/40">
               <Th>Title</Th>
-              <Th>Target</Th>
+              <Th>Audience</Th>
               <Th>Sent</Th>
-              <Th>Created By</Th>
               <Th>Status</Th>
-              <Th>Read Receipts</Th>
-              <Th>Actions</Th>
+              <Th>Read Rate</Th>
+              <Th></Th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <EmptyRow colSpan={7} message="No announcements match these filters." />
+              <EmptyRow colSpan={6} message="No announcements match this filter." />
             ) : (
               filtered.map((row) => (
                 <tr key={row.id} className="border-b border-border/20">
                   <Td className="font-medium">{row.title}</Td>
                   <Td>{row.audienceLabel}</Td>
                   <Td>{row.sentAt ? formatDateTime(row.sentAt) : <span className="text-text-muted">—</span>}</Td>
-                  <Td>{row.createdBy}</Td>
                   <Td>
                     <StatusBadge status={row.status} />
                   </Td>
                   <Td>
-                    {row.status === "sent" ? (
-                      `${row.reads}/${row.recipients} (${row.recipients ? Math.round((row.reads / row.recipients) * 100) : 0}%)`
-                    ) : (
-                      <span className="text-text-muted">—</span>
-                    )}
+                    {row.status === "sent"
+                      ? `${row.reads}/${row.recipients} (${row.recipients ? Math.round((row.reads / row.recipients) * 100) : 0}%)`
+                      : "—"}
                   </Td>
                   <Td>
                     <div className="flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setViewing(row)}
-                        className="text-sm font-medium text-accent transition hover:underline"
-                      >
+                      <button type="button" onClick={() => setViewing(row)} className="text-sm font-medium text-accent hover:underline">
                         View
                       </button>
                       <form action={sendAction} className="inline">
@@ -156,11 +116,9 @@ export function AnnouncementsTable({
       >
         {viewing ? (
           <div className="grid gap-4">
-            <p className="whitespace-pre-wrap rounded-card border border-border/50 p-4 text-sm text-text-secondary">
-              {viewing.body}
-            </p>
-            <div className="flex flex-wrap gap-2 text-xs text-text-muted">
-              {(["email", "push", "sms"] as const)
+            <p className="whitespace-pre-wrap rounded-card border border-border/50 p-4 text-sm text-text-secondary">{viewing.body}</p>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {(["email", "sms"] as const)
                 .filter((channel) => viewing.channels[channel])
                 .map((channel) => (
                   <span key={channel} className="rounded-full bg-accentSoft px-3 py-1 font-semibold text-accent">
@@ -174,14 +132,12 @@ export function AnnouncementsTable({
               </Button>
               <form action={sendAction}>
                 <input type="hidden" name="announcementId" value={viewing.id} />
-                <SubmitButton pendingLabel="Sending…">
-                  {viewing.status === "sent" ? "Resend now" : "Send now"}
-                </SubmitButton>
+                <SubmitButton pendingLabel="Sending…">{viewing.status === "sent" ? "Resend now" : "Send now"}</SubmitButton>
               </form>
             </div>
           </div>
         ) : null}
       </Modal>
-    </>
+    </div>
   );
 }

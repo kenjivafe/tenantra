@@ -4,7 +4,7 @@ import { titleCase } from "@/lib/format";
 type Variant = "default" | "accent" | "subtle" | "success" | "warning" | "danger";
 
 const VARIANTS: Record<string, Variant> = {
-  // invoices
+  // bills
   paid: "success",
   pending: "warning",
   overdue: "danger",
@@ -12,21 +12,20 @@ const VARIANTS: Record<string, Variant> = {
   // units
   occupied: "success",
   vacant: "warning",
-  reserved: "subtle",
   maintenance: "danger",
-  // residents
-  active: "success",
-  expiring: "danger",
-  blacklisted: "subtle",
-  "moved-out": "subtle",
+  // tenants
+  current: "success",
+  ended: "subtle",
+  // cheques
+  deposited: "success",
+  bounced: "danger",
+  // improvements
+  approved: "success",
+  rejected: "danger",
+  completed: "accent",
   // announcements
   sent: "success",
   draft: "warning",
-  // bookings
-  approved: "success",
-  rejected: "danger",
-  cancelled: "subtle",
-  completed: "accent",
   // audit
   create: "success",
   update: "warning",

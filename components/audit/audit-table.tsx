@@ -19,7 +19,6 @@ export type AuditRow = {
   action: string;
   module: string;
   description: string;
-  ip: string;
   success: boolean;
 };
 
@@ -56,12 +55,12 @@ export function AuditTable({ rows }: { rows: AuditRow[] }) {
   const visible = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const exportCsv = () => {
-    const header = ["Timestamp", "User", "Action", "Module", "Description", "IP", "Result"];
+    const header = ["Timestamp", "User", "Action", "Module", "Description", "Result"];
     const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
     const csv = [
       header.join(","),
       ...filtered.map((row) =>
-        [row.at, row.actor, row.action, row.module, row.description, row.ip, row.success ? "success" : "failed"]
+        [row.at, row.actor, row.action, row.module, row.description, row.success ? "success" : "failed"]
           .map((value) => escape(String(value)))
           .join(","),
       ),
@@ -76,9 +75,7 @@ export function AuditTable({ rows }: { rows: AuditRow[] }) {
     push(`Exported ${filtered.length} log entries to CSV.`);
   };
 
-  const selectClass =
-    "h-11 rounded-control border border-border/60 bg-panel px-4 text-sm text-text-primary";
-
+  const selectClass = "h-11 rounded-control border border-border/60 bg-panel px-4 text-sm text-text-primary";
   const reset = <T,>(setter: (value: T) => void) => (value: T) => {
     setter(value);
     setPage(1);
@@ -112,20 +109,8 @@ export function AuditTable({ rows }: { rows: AuditRow[] }) {
               </option>
             ))}
           </select>
-          <input
-            type="date"
-            aria-label="From date"
-            value={from}
-            onChange={(event) => reset(setFrom)(event.target.value)}
-            className={selectClass}
-          />
-          <input
-            type="date"
-            aria-label="To date"
-            value={to}
-            onChange={(event) => reset(setTo)(event.target.value)}
-            className={selectClass}
-          />
+          <input type="date" aria-label="From date" value={from} onChange={(event) => reset(setFrom)(event.target.value)} className={selectClass} />
+          <input type="date" aria-label="To date" value={to} onChange={(event) => reset(setTo)(event.target.value)} className={selectClass} />
           <input
             type="search"
             value={query}
@@ -134,7 +119,7 @@ export function AuditTable({ rows }: { rows: AuditRow[] }) {
             className="h-11 min-w-[14rem] flex-1 rounded-control border border-border/60 bg-panel px-4 text-sm text-text-primary placeholder:text-text-muted"
           />
           <Button variant="secondary" onClick={exportCsv}>
-            Export Logs
+            Export CSV
           </Button>
         </div>
       </Card>
@@ -155,12 +140,11 @@ export function AuditTable({ rows }: { rows: AuditRow[] }) {
               <Th>Action</Th>
               <Th>Module</Th>
               <Th>Description</Th>
-              <Th>IP Address</Th>
             </tr>
           </thead>
           <tbody>
             {visible.length === 0 ? (
-              <EmptyRow colSpan={6} message="No log entries match these filters." />
+              <EmptyRow colSpan={5} message="No log entries match these filters." />
             ) : (
               visible.map((row) => (
                 <tr key={row.id} className="border-b border-border/20">
@@ -174,20 +158,13 @@ export function AuditTable({ rows }: { rows: AuditRow[] }) {
                     {row.description}
                     {row.success ? null : <span className="ml-2 text-xs font-semibold">(failed)</span>}
                   </Td>
-                  <Td className="whitespace-nowrap">{row.ip}</Td>
                 </tr>
               ))
             )}
           </tbody>
         </TableShell>
 
-        <Pagination
-          page={safePage}
-          pageCount={pageCount}
-          total={filtered.length}
-          pageSize={PAGE_SIZE}
-          onChange={setPage}
-        />
+        <Pagination page={safePage} pageCount={pageCount} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </Card>
     </>
   );

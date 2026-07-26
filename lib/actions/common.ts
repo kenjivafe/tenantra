@@ -31,7 +31,6 @@ export function recordAudit(
     action,
     module,
     description,
-    ip: "127.0.0.1",
     success,
   });
 }

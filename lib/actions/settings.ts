@@ -8,66 +8,48 @@ export async function updateSettingsAction(_prev: ActionResult | null, formData:
   const orgName = readString(formData, "orgName");
   const adminName = readString(formData, "adminName");
   const adminEmail = readString(formData, "adminEmail");
-  const billingDueDay = readNumber(formData, "billingDueDay", 5);
-  const gracePeriodDays = readNumber(formData, "gracePeriodDays", 3);
-  const lateFeePercent = readNumber(formData, "lateFeePercent", 2);
+  const billingDueDay = readNumber(formData, "billingDueDay", 15);
+  const lateFeePercent = readNumber(formData, "lateFeePercent", 10);
 
   if (orgName.length < 2) return fail("Organisation name is required.");
   if (adminName.length < 2) return fail("Administrator name is required.");
   if (!/^\S+@\S+\.\S+$/.test(adminEmail)) return fail("Enter a valid administrator email.");
   if (billingDueDay < 1 || billingDueDay > 28) return fail("Billing due day must be between 1 and 28.");
-  if (gracePeriodDays < 0 || gracePeriodDays > 30) return fail("Grace period must be between 0 and 30 days.");
   if (lateFeePercent < 0 || lateFeePercent > 25) return fail("Late fee must be between 0% and 25%.");
 
   try {
     return withAudit("update", "Settings", (db) => {
-      const previous = { ...db.settings };
       db.settings = {
         ...db.settings,
         orgName,
         adminName,
         adminEmail,
         billingDueDay,
-        gracePeriodDays,
         lateFeePercent,
-        channels: {
-          email: readBoolean(formData, "email"),
-          push: readBoolean(formData, "push"),
-          sms: readBoolean(formData, "sms"),
-        },
+        channels: { email: readBoolean(formData, "email"), sms: readBoolean(formData, "sms") },
       };
-
-      const changes: string[] = [];
-      if (previous.orgName !== orgName) changes.push(`organisation "${previous.orgName}" → "${orgName}"`);
-      if (previous.billingDueDay !== billingDueDay) changes.push(`due day ${previous.billingDueDay} → ${billingDueDay}`);
-      if (previous.lateFeePercent !== lateFeePercent) changes.push(`late fee ${previous.lateFeePercent}% → ${lateFeePercent}%`);
-
-      return {
-        result: ok("Settings saved."),
-        description: `Updated system settings${changes.length ? `: ${changes.join(", ")}` : ""}`,
-      };
+      return { result: ok("Settings saved."), description: "Updated system settings" };
     });
   } catch (error) {
     return fail(error instanceof Error ? error.message : "Could not save settings.");
   }
 }
 
-export async function updateChannelsAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const channel = readString(formData, "channel") as "email" | "push" | "sms";
-  const enabled = readBoolean(formData, "enabled");
-
-  if (!["email", "push", "sms"].includes(channel)) return fail("Unknown notification channel.");
+export async function addLocationAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const name = readString(formData, "name");
+  if (name.length < 2) return fail("Enter a location name.");
 
   try {
-    return withAudit("update", "Settings", (db) => {
-      db.settings.channels[channel] = enabled;
-      return {
-        result: ok(`${channel.toUpperCase()} notifications ${enabled ? "enabled" : "disabled"}.`),
-        description: `${enabled ? "Enabled" : "Disabled"} ${channel} notifications`,
-      };
+    return withAudit("create", "Settings", (db) => {
+      if (db.locations.some((location) => location.name.toLowerCase() === name.toLowerCase())) {
+        throw new Error(`${name} already exists.`);
+      }
+      const code = name.slice(0, 3).toUpperCase().replace(/[^A-Z]/g, "") || `L${db.locations.length + 1}`;
+      db.locations.push({ id: `loc-${Date.now().toString(36)}`, name, code });
+      return { result: ok(`${name} added.`), description: `Added location ${name}` };
     });
   } catch (error) {
-    return fail(error instanceof Error ? error.message : "Could not update notification settings.");
+    return fail(error instanceof Error ? error.message : "Could not add the location.");
   }
 }
 

@@ -1,14 +1,18 @@
-export type UnitStatus = "occupied" | "vacant" | "reserved" | "maintenance";
-export type UnitType = "Studio" | "1BR" | "2BR" | "3BR";
-export type ResidentStatus = "active" | "pending" | "expiring" | "blacklisted" | "moved-out";
-export type InvoiceStatus = "paid" | "pending" | "overdue" | "void";
-export type AnnouncementStatus = "draft" | "sent";
-export type FacilityStatus = "active" | "maintenance";
-export type BookingStatus = "pending" | "approved" | "rejected" | "cancelled" | "completed";
-export type AuditAction = "create" | "update" | "delete" | "login";
-export type PaymentMethod = "cash" | "bank-transfer" | "gcash" | "card" | "check";
+export type UnitCategory = "commercial" | "residential";
+/** short-term = month-to-month (accommodation); long-term = annual lease. Both bill monthly. */
+export type Tenancy = "short-term" | "long-term";
+export type UnitStatus = "occupied" | "vacant" | "maintenance";
 
-export type Property = {
+export type PaymentMethod = "cash" | "gcash" | "pdc" | "bank-transfer";
+export type ChequeStatus = "pending" | "deposited" | "bounced";
+export type BillStatus = "paid" | "pending" | "overdue" | "void";
+export type TenantStatus = "current" | "overdue" | "ended";
+export type ContractType = "residential" | "accommodation";
+export type ImprovementStatus = "pending" | "approved" | "rejected" | "completed";
+export type AnnouncementStatus = "draft" | "sent";
+export type AuditAction = "create" | "update" | "delete" | "login";
+
+export type Location = {
   id: string;
   name: string;
   code: string;
@@ -17,67 +21,113 @@ export type Property = {
 export type Unit = {
   id: string;
   code: string;
-  propertyId: string;
-  type: UnitType;
-  floor: number;
+  locationId: string;
+  category: UnitCategory;
+  tenancy: Tenancy;
+  /** Lessor / property owner shown on the tenant profile and contract. */
+  owner: string;
+  /** Monthly rent regardless of tenancy (long-term is billed monthly across the year). */
   rent: number;
-  dues: number;
+  electricMeterNo: string;
+  waterMeterNo: string;
+  depositMonths: number;
+  advanceMonths: number;
+  furnished: boolean;
+  /** Default fixtures/appliances included with the unit. */
+  inventory: string[];
   status: UnitStatus;
-  residentId: string | null;
+  tenantId: string | null;
 };
 
-export type Resident = {
+export type Tenant = {
   id: string;
   name: string;
   email: string;
   phone: string;
+  homeAddress: string;
   unitId: string | null;
+  /** Snapshot of the unit owner at move-in. */
+  lessor: string;
+  contractType: ContractType;
   leaseStart: string | null;
   leaseEnd: string | null;
-  status: ResidentStatus;
+  termMonths: number;
+  monthlyRent: number;
+  /** Day of the month rent falls due. */
+  dueDay: number;
+  depositAmount: number;
+  advanceAmount: number;
+  paymentMode: PaymentMethod;
+  inventory: string[];
+  status: TenantStatus;
   createdAt: string;
 };
 
-export type InvoiceLine = {
-  label: string;
-  amount: number;
-};
+export type BillLineKind = "rent" | "electric" | "water" | "other";
 
-export type Payment = {
-  amount: number;
-  method: PaymentMethod;
-  reference: string;
-  at: string;
-};
-
-export type Invoice = {
+export type Bill = {
   id: string;
   number: string;
-  residentId: string | null;
+  tenantId: string;
   unitId: string;
-  propertyId: string;
-  /** Billing period as `YYYY-MM`. */
+  locationId: string;
+  /** Billing month as `YYYY-MM`. */
   period: string;
-  lines: InvoiceLine[];
+  rent: number;
+  electric: number;
+  water: number;
+  other: number;
+  otherLabel: string | null;
   amount: number;
   dueDate: string;
-  status: InvoiceStatus;
   issuedAt: string;
-  payment: Payment | null;
-  remindersSent: number;
-  lastReminderAt: string | null;
+  status: BillStatus;
+  payment: BillPayment | null;
   note: string | null;
 };
 
+export type BillPayment = {
+  method: PaymentMethod;
+  reference: string;
+  date: string;
+  /** Present when settled by a post-dated cheque. */
+  chequeId: string | null;
+};
+
+export type Cheque = {
+  id: string;
+  tenantId: string;
+  unitId: string;
+  chequeNo: string;
+  bank: string;
+  amount: number;
+  /** Date the cheque is scheduled to be deposited. */
+  dueDate: string;
+  period: string;
+  status: ChequeStatus;
+  billId: string | null;
+};
+
+export type ImprovementRequest = {
+  id: string;
+  tenantId: string;
+  unitId: string;
+  title: string;
+  description: string;
+  estimatedCost: number;
+  status: ImprovementStatus;
+  createdAt: string;
+  decidedAt: string | null;
+  ownerResponse: string | null;
+};
+
 export type AnnouncementAudience = {
-  scope: "all" | "property" | "units";
-  propertyId: string | null;
-  unitCodes: string[];
+  scope: "all" | "location";
+  locationId: string | null;
 };
 
 export type AnnouncementChannels = {
   email: boolean;
-  push: boolean;
   sms: boolean;
 };
 
@@ -95,35 +145,6 @@ export type Announcement = {
   reads: number;
 };
 
-export type Facility = {
-  id: string;
-  name: string;
-  propertyId: string;
-  capacity: number;
-  rateType: "hourly" | "monthly" | "free";
-  rate: number;
-  status: FacilityStatus;
-  openHour: number;
-  closeHour: number;
-  requiresApproval: boolean;
-};
-
-export type Booking = {
-  id: string;
-  facilityId: string;
-  residentId: string;
-  /** `YYYY-MM-DD` */
-  date: string;
-  startHour: number;
-  endHour: number;
-  status: BookingStatus;
-  fee: number;
-  note: string | null;
-  createdAt: string;
-  decidedAt: string | null;
-  decidedBy: string | null;
-};
-
 export type AuditLog = {
   id: string;
   at: string;
@@ -131,7 +152,6 @@ export type AuditLog = {
   action: AuditAction;
   module: string;
   description: string;
-  ip: string;
   success: boolean;
 };
 
@@ -140,9 +160,7 @@ export type Settings = {
   adminName: string;
   adminEmail: string;
   currency: string;
-  /** Day of month invoices fall due. */
   billingDueDay: number;
-  gracePeriodDays: number;
   lateFeePercent: number;
   channels: AnnouncementChannels;
 };
@@ -153,18 +171,20 @@ export type ActionResult = {
   message: string;
   /** Bumped on each submission so effects can react to repeated identical results. */
   at?: number;
+  /** Optional payload, e.g. a new record id the client can navigate to. */
+  id?: string;
 };
 
 export type Database = {
   version: number;
   seededAt: string;
-  properties: Property[];
+  locations: Location[];
   units: Unit[];
-  residents: Resident[];
-  invoices: Invoice[];
+  tenants: Tenant[];
+  bills: Bill[];
+  cheques: Cheque[];
+  improvements: ImprovementRequest[];
   announcements: Announcement[];
-  facilities: Facility[];
-  bookings: Booking[];
   auditLogs: AuditLog[];
   settings: Settings;
 };

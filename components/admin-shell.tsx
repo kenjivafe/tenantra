@@ -9,7 +9,6 @@ import { usePathname } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Sidebar, SidebarNav } from "@/components/ui/sidebar";
 
 const navItems = [
@@ -121,13 +120,13 @@ export function AdminShell({ children, adminName, orgName, badges }: Props) {
         </div>
       )}
 
-      <main className="rounded-bl-card rounded-tl-card bg-panel px-5 py-6 md:px-8 md:py-8 lg:px-10 lg:py-10">
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-between lg:hidden">
+      <main className="flex min-h-screen flex-col rounded-bl-card rounded-tl-card bg-panel">
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 rounded-tl-card border-b border-border/60 bg-sidebar/85 px-5 py-4 backdrop-blur-md md:px-8 lg:px-10">
+          <div className="flex min-w-0 items-center gap-3">
             <Button
               variant="secondary"
               size="sm"
-              className="gap-2"
+              className="shrink-0 px-3 lg:hidden"
               onClick={() => setIsSidebarOpen(true)}
               aria-label="Open navigation menu"
             >
@@ -136,28 +135,23 @@ export function AdminShell({ children, adminName, orgName, badges }: Props) {
                 <span className="h-0.5 w-full rounded bg-current" />
                 <span className="h-0.5 w-full rounded bg-current" />
               </span>
-              <span className="text-xs font-semibold">Menu</span>
             </Button>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-semibold font-display text-text-primary md:text-2xl">{page.title}</h1>
+              <p className="mt-0.5 hidden truncate text-sm text-text-muted sm:block">{page.description}</p>
+            </div>
           </div>
+          {pathname === "/" ? (
+            <div className="flex shrink-0 flex-wrap justify-end gap-3">
+              <ButtonLink href="/tenants/new">Add tenant</ButtonLink>
+              <ButtonLink href="/billing" variant="secondary" className="hidden sm:inline-flex">
+                Go to billing
+              </ButtonLink>
+            </div>
+          ) : null}
+        </header>
 
-          <Card className="bg-sidebar shadow-amber-900/25" padding="md">
-            <header className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-2xl">
-                <h1 className="text-3xl font-semibold font-display text-text-primary">{page.title}</h1>
-                <p className="mt-2 text-sm text-text-muted">{page.description}</p>
-              </div>
-              {pathname === "/" ? (
-                <div className="flex flex-wrap gap-3">
-                  <ButtonLink href="/tenants/new">Add tenant</ButtonLink>
-                  <ButtonLink href="/billing" variant="secondary">
-                    Go to billing
-                  </ButtonLink>
-                </div>
-              ) : null}
-            </header>
-          </Card>
-          {children}
-        </div>
+        <div className="flex flex-1 flex-col gap-6 px-5 py-6 md:px-8 md:py-8 lg:px-10 lg:py-10">{children}</div>
       </main>
     </div>
   );

@@ -33,10 +33,12 @@ export function Modal({ open, onClose, title, description, children, className }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
+      {/* Fixed (not absolute) so the blur covers the whole viewport, not just the
+          container's padding box — otherwise an unblurred margin shows around the dialog. */}
       <button
         type="button"
         aria-label="Close dialog"
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
       <div

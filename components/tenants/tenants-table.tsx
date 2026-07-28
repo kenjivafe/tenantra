@@ -121,17 +121,17 @@ export function TenantsTable({
             ) : (
               visible.map((row) => (
                 <tr key={row.id} className="border-b border-border/20">
-                  <Td className="font-medium">
+                  <Td label="Tenant" className="font-medium">
                     {row.name}
                     <span className="block text-xs text-text-muted">{row.email}</span>
                   </Td>
-                  <Td>
+                  <Td label="Unit">
                     {row.unitCode ?? "—"}
                     {row.locationName ? <span className="block text-xs text-text-muted">{row.locationName}</span> : null}
                   </Td>
-                  <Td>{formatMoney(row.monthlyRent)}</Td>
-                  <Td>{formatDate(row.leaseEnd)}</Td>
-                  <Td>
+                  <Td label="Rent">{formatMoney(row.monthlyRent)}</Td>
+                  <Td label="Lease ends">{formatDate(row.leaseEnd)}</Td>
+                  <Td label="Next due">
                     {row.nextDueDate ? (
                       <>
                         {formatDate(row.nextDueDate)}
@@ -141,15 +141,17 @@ export function TenantsTable({
                       <span className="text-text-muted">—</span>
                     )}
                   </Td>
-                  <Td>{formatMoney(row.currentElectric)}</Td>
-                  <Td>{formatMoney(row.currentWater)}</Td>
-                  <Td className={row.balance > 0 ? "font-semibold text-status-danger" : ""}>{formatMoney(row.balance)}</Td>
-                  <Td>
+                  <Td label="Electric">{formatMoney(row.currentElectric)}</Td>
+                  <Td label="Water">{formatMoney(row.currentWater)}</Td>
+                  <Td label="Balance" className={row.balance > 0 ? "font-semibold text-status-danger" : ""}>
+                    {formatMoney(row.balance)}
+                  </Td>
+                  <Td label="Status">
                     <StatusBadge status={row.status} />
                   </Td>
                   <Td>
                     <Link href={`/tenants/${row.id}`} className="text-sm font-medium text-accent transition hover:underline">
-                      View
+                      View profile →
                     </Link>
                   </Td>
                 </tr>

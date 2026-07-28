@@ -150,16 +150,16 @@ export function UnitsTable({
             ) : (
               visible.map((row) => (
                 <tr key={row.id} className="border-b border-border/20">
-                  <Td className="font-medium">{row.code}</Td>
-                  <Td>{row.locationName}</Td>
-                  <Td>
+                  <Td label="Unit" className="font-medium">{row.code}</Td>
+                  <Td label="Location">{row.locationName}</Td>
+                  <Td label="Type">
                     {titleCase(row.category)}
                     <span className="block text-xs text-text-muted">{row.tenancy === "long-term" ? "Long-term" : "Short-term"}</span>
                   </Td>
-                  <Td>{formatMoney(row.rent)}</Td>
-                  <Td className="text-xs">{row.electricMeterNo}</Td>
-                  <Td className="text-xs">{row.waterMeterNo}</Td>
-                  <Td>
+                  <Td label="Rent">{formatMoney(row.rent)}</Td>
+                  <Td label="Elec. meter" className="text-xs">{row.electricMeterNo}</Td>
+                  <Td label="Water meter" className="text-xs">{row.waterMeterNo}</Td>
+                  <Td label="Tenant">
                     {row.tenantId ? (
                       <Link href={`/tenants/${row.tenantId}`} className="text-accent hover:underline">
                         {row.tenantName}
@@ -168,7 +168,7 @@ export function UnitsTable({
                       <span className="text-text-muted">—</span>
                     )}
                   </Td>
-                  <Td>
+                  <Td label="Status">
                     <StatusBadge status={row.status} />
                   </Td>
                   <Td>

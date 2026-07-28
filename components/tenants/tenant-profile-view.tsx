@@ -189,15 +189,15 @@ export function TenantProfileView({ profile }: { profile: TenantProfile }) {
                 ) : (
                   bills.map((bill) => (
                     <tr key={bill.id} className="border-b border-border/20">
-                      <Td className="font-medium">
+                      <Td label="Bill" className="font-medium">
                         {formatPeriod(bill.period)}
                         <span className="block text-xs text-text-muted">{bill.number}</span>
                       </Td>
-                      <Td>{formatMoney(bill.rent)}</Td>
-                      <Td>{formatMoney(bill.electric)}</Td>
-                      <Td>{formatMoney(bill.water)}</Td>
-                      <Td className="font-semibold">{formatMoney(bill.amount)}</Td>
-                      <Td>
+                      <Td label="Rent">{formatMoney(bill.rent)}</Td>
+                      <Td label="Electric">{formatMoney(bill.electric)}</Td>
+                      <Td label="Water">{formatMoney(bill.water)}</Td>
+                      <Td label="Total" className="font-semibold">{formatMoney(bill.amount)}</Td>
+                      <Td label="Status">
                         <StatusBadge status={bill.status} />
                       </Td>
                       <Td>
@@ -249,12 +249,12 @@ export function TenantProfileView({ profile }: { profile: TenantProfile }) {
                 <tbody>
                   {cheques.map((cheque) => (
                     <tr key={cheque.id} className="border-b border-border/20">
-                      <Td>{formatDate(cheque.dueDate)}</Td>
-                      <Td>{formatPeriod(cheque.period)}</Td>
-                      <Td className="font-medium">{cheque.chequeNo}</Td>
-                      <Td>{cheque.bank}</Td>
-                      <Td>{formatMoney(cheque.amount)}</Td>
-                      <Td>
+                      <Td label="Deposit on">{formatDate(cheque.dueDate)}</Td>
+                      <Td label="For">{formatPeriod(cheque.period)}</Td>
+                      <Td label="Cheque #" className="font-medium">{cheque.chequeNo}</Td>
+                      <Td label="Bank">{cheque.bank}</Td>
+                      <Td label="Amount">{formatMoney(cheque.amount)}</Td>
+                      <Td label="Status">
                         <StatusBadge status={cheque.status} />
                       </Td>
                       <Td>

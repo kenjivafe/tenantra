@@ -215,22 +215,22 @@ function BillsTab({
             ) : (
               visible.map((bill) => (
                 <tr key={bill.id} className="border-b border-border/20">
-                  <Td className="font-medium">
+                  <Td label="Bill" className="font-medium">
                     {bill.number}
                     <span className="block text-xs text-text-muted">{bill.locationName}</span>
                   </Td>
-                  <Td>
+                  <Td label="Tenant">
                     <Link href={`/tenants/${bill.tenantId}`} className="text-accent hover:underline">
                       {bill.tenantName}
                     </Link>
                     <span className="block text-xs text-text-muted">Unit {bill.unitCode}</span>
                   </Td>
-                  <Td>{formatMoney(bill.rent)}</Td>
-                  <Td>{formatMoney(bill.electric)}</Td>
-                  <Td>{formatMoney(bill.water)}</Td>
-                  <Td className="font-semibold">{formatMoney(bill.amount)}</Td>
-                  <Td>{formatDate(bill.dueDate)}</Td>
-                  <Td>
+                  <Td label="Rent">{formatMoney(bill.rent)}</Td>
+                  <Td label="Electric">{formatMoney(bill.electric)}</Td>
+                  <Td label="Water">{formatMoney(bill.water)}</Td>
+                  <Td label="Total" className="font-semibold">{formatMoney(bill.amount)}</Td>
+                  <Td label="Due">{formatDate(bill.dueDate)}</Td>
+                  <Td label="Status">
                     <StatusBadge status={bill.status} />
                   </Td>
                   <Td>
@@ -456,17 +456,17 @@ function ChequesTab({ cheques }: { cheques: ChequeRow[] }) {
           ) : (
             visible.map((cheque) => (
               <tr key={cheque.id} className="border-b border-border/20">
-                <Td>{formatDate(cheque.dueDate)}</Td>
-                <Td className="font-medium">
+                <Td label="Deposit on">{formatDate(cheque.dueDate)}</Td>
+                <Td label="Tenant" className="font-medium">
                   <Link href={`/tenants/${cheque.tenantId}`} className="text-accent hover:underline">
                     {cheque.tenantName}
                   </Link>
                 </Td>
-                <Td>{cheque.unitCode}</Td>
-                <Td>{cheque.chequeNo}</Td>
-                <Td>{cheque.bank}</Td>
-                <Td>{formatMoney(cheque.amount)}</Td>
-                <Td>
+                <Td label="Unit">{cheque.unitCode}</Td>
+                <Td label="Cheque #">{cheque.chequeNo}</Td>
+                <Td label="Bank">{cheque.bank}</Td>
+                <Td label="Amount">{formatMoney(cheque.amount)}</Td>
+                <Td label="Status">
                   <StatusBadge status={cheque.status} />
                 </Td>
                 <Td>

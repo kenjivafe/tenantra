@@ -73,13 +73,13 @@ export function AnnouncementsTable({ rows }: { rows: AnnouncementRow[] }) {
             ) : (
               filtered.map((row) => (
                 <tr key={row.id} className="border-b border-border/20">
-                  <Td className="font-medium">{row.title}</Td>
-                  <Td>{row.audienceLabel}</Td>
-                  <Td>{row.sentAt ? formatDateTime(row.sentAt) : <span className="text-text-muted">—</span>}</Td>
-                  <Td>
+                  <Td label="Title" className="font-medium">{row.title}</Td>
+                  <Td label="Audience">{row.audienceLabel}</Td>
+                  <Td label="Sent">{row.sentAt ? formatDateTime(row.sentAt) : <span className="text-text-muted">—</span>}</Td>
+                  <Td label="Status">
                     <StatusBadge status={row.status} />
                   </Td>
-                  <Td>
+                  <Td label="Read rate">
                     {row.status === "sent"
                       ? `${row.reads}/${row.recipients} (${row.recipients ? Math.round((row.reads / row.recipients) * 100) : 0}%)`
                       : "—"}

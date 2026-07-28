@@ -148,13 +148,13 @@ export function AuditTable({ rows }: { rows: AuditRow[] }) {
             ) : (
               visible.map((row) => (
                 <tr key={row.id} className="border-b border-border/20">
-                  <Td className="whitespace-nowrap">{row.timestamp}</Td>
-                  <Td>{row.actor}</Td>
-                  <Td>
+                  <Td label="Date" className="whitespace-nowrap">{row.timestamp}</Td>
+                  <Td label="User">{row.actor}</Td>
+                  <Td label="Action">
                     <StatusBadge status={row.action} />
                   </Td>
-                  <Td>{row.module}</Td>
-                  <Td className={row.success ? "" : "text-status-danger"}>
+                  <Td label="Module">{row.module}</Td>
+                  <Td label="Description" className={row.success ? "" : "text-status-danger"}>
                     {row.description}
                     {row.success ? null : <span className="ml-2 text-xs font-semibold">(failed)</span>}
                   </Td>

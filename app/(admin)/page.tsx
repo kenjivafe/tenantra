@@ -141,10 +141,10 @@ export default function DashboardPage() {
               ) : (
                 m.upcomingDues.map((due) => (
                   <tr key={due.id} className="border-b border-border/20">
-                    <Td className="font-medium">{due.tenantName}</Td>
-                    <Td>{due.unitCode}</Td>
-                    <Td>{formatDate(due.dueDate)}</Td>
-                    <Td className="font-semibold">{formatMoney(due.amount)}</Td>
+                    <Td label="Tenant" className="font-medium">{due.tenantName}</Td>
+                    <Td label="Unit">{due.unitCode}</Td>
+                    <Td label="Due">{formatDate(due.dueDate)}</Td>
+                    <Td label="Amount" className="font-semibold">{formatMoney(due.amount)}</Td>
                   </tr>
                 ))
               )}
@@ -170,12 +170,12 @@ export default function DashboardPage() {
             <tbody>
               {m.byLocation.map((location) => (
                 <tr key={location.name} className="border-b border-border/20">
-                  <Td className="font-medium">{location.name}</Td>
-                  <Td>
+                  <Td label="Location" className="font-medium">{location.name}</Td>
+                  <Td label="Occupied">
                     {location.occupied}/{location.units}
                   </Td>
-                  <Td>{formatMoney(location.billed)}</Td>
-                  <Td className="text-status-success">{formatMoney(location.collected)}</Td>
+                  <Td label="Billed">{formatMoney(location.billed)}</Td>
+                  <Td label="Collected" className="text-status-success">{formatMoney(location.collected)}</Td>
                 </tr>
               ))}
             </tbody>
